@@ -1,0 +1,3 @@
+[submodule "NDN3"]
+	path = NDN3
+	url = https://github.com/kovacspe/NDN3.git
