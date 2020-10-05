@@ -81,30 +81,26 @@ def get_combine_chan_params(number_of_neurons):
             )
     #params['output_dims'] = [1,number_of_neurons,1]
     params['weights_initializers'] = ['normal']# Check
-    params['ffnet_n'] = [6,7,8]
+    params['ffnet_n'] = [6]
     params['xstim_n'] = None
     return params
 
 
 
-# Sampler #6 #7 #8
-def get_sampler_network(channels,height,width,n_neurons,img_net,location_net):
+# Sampler #6
+def get_readout_network(channels,height,width,n_neurons,img_net):
     l1 = 0.1
     params = ffnetwork_params(
         input_dims=[channels,height,width],
         layer_sizes=[n_neurons],
-        layer_types=['grid_sample'], 
-        act_funcs=['relu'],
+        layer_types=['normal'], 
+        act_funcs=['lin'],
         log_activations=True,
         reg_list={
             'l1':[l1]})
     params['ffnet_n'] = [img_net]
     params['xstim_n'] = None
     params['network_type'] = 'sampler'
-    params['weights_initializers'] = ['normal']
-    params['locationnet_n'] = location_net
-    params['num_locations'] = n_neurons
-    params['computed_locations'] = False
     return params
 
 def define_MEI_network(batch_size,height,width,input_channels,neurons,channels,means):
@@ -141,18 +137,8 @@ def define_MEI_network(batch_size,height,width,input_channels,neurons,channels,m
 
     curr_h = height//2
     curr_w = width//2
-    # Sampler #6-8
-    location_net = None
-    for i in range(3):
-        ff_networks.append(get_sampler_network(chan,curr_h,curr_w,neurons,img_net=i+3,location_net=location_net))
-        location_net = [i+6]
-        curr_h=math.ceil(curr_h/2)
-        curr_w=math.ceil(curr_w/2)
-        layers_to_skip.append([])
-
-    # Combine channels #9
-    ff_networks.append(get_combine_chan_params(neurons))
-    layers_to_skip.append([])
+    # Readout layer
+    ff_networks.append(get_readout_network(chan,curr_h,curr_w,neurons,img_net=i+3))
     
     network = NDN.NDN(ff_networks,
         input_dim_list=[[1,64,36]],
@@ -161,13 +147,6 @@ def define_MEI_network(batch_size,height,width,input_channels,neurons,channels,m
     network.log_correlation='filter-low-std-gold'
     fit_vars = network.fit_variables(layers_to_skip=layers_to_skip,fit_biases=True)
     
-    # Foreach lowpass filter
-    filt = create_filter('gauss5x5',chan,chan)
-    for i in range(3,5):
-        #initialize weights with gaussian filter and remove from fit variables 
-        shape = network.networks[i].layers[0].weights.shape
-        network.networks[i].layers[0].weights = np.reshape(filt,shape)
-    #network.networks[-1].layers[0].biases = means
     return network,fit_vars
 
 
