@@ -42,17 +42,18 @@ def get_core_params(height,width,input_channels,output_channels,layer_num):
         layer_sizes=[output_channels],
         layer_types=['conv'], 
         act_funcs=['softplus'],
+        shift_spacing=2,
         reg_list={
             'd2x':[0.02 if layer_num==0 else 0.01]})
-    params['weights_initializers'] = ['normal']
+    params['weights_initializers'] = ['trunc_normal']
     params['pos_constraint'] = True
     if layer_num == 0:
         params['xstim_n']=[0]
-        params['conv_filter_widths']=[13]
+        params['conv_filter_widths']=[7]
     else:
         params['xstim_n'] = None
-        params['ffnet_n'] = range(layer_num)
-        params['conv_filter_widths']=[5]
+        params['ffnet_n'] = [layer_num-1]
+        params['conv_filter_widths']=[3]
     return params
 
 # Filters #3 #4 #5
@@ -65,7 +66,7 @@ def get_lowpass_filter_params(height,width,input_channels,input_num):
         layer_types=['conv'], 
         act_funcs=['lin']
         )
-    params['ffnet_n']=input_num
+    params['ffnet_n']=[input_num]
     params['xstim_n']=None
     return params
 
@@ -81,7 +82,7 @@ def get_combine_chan_params(number_of_neurons):
             )
     #params['output_dims'] = [1,number_of_neurons,1]
     params['weights_initializers'] = ['normal']# Check
-    params['ffnet_n'] = [6]
+    params['ffnet_n'] = [3]
     params['xstim_n'] = None
     return params
 
@@ -94,57 +95,107 @@ def get_readout_network(channels,height,width,n_neurons,img_net):
         input_dims=[channels,height,width],
         layer_sizes=[n_neurons],
         layer_types=['normal'], 
-        act_funcs=['lin'],
+        act_funcs=['softplus'],
         log_activations=True,
         reg_list={
             'l1':[l1]})
     params['ffnet_n'] = [img_net]
     params['xstim_n'] = None
-    params['network_type'] = 'sampler'
     return params
+
+def define_basic_readout_network(batch_size,height,width,input_channels,neurons,channels,means):
+    params = ffnetwork_params(
+        input_dims=[input_channels,height,width], 
+        layer_sizes=[channels,channels,channels,neurons],
+        layer_types=['conv','conv','conv','normal'], 
+        act_funcs=['softplus','softplus','softplus','softplus'],
+        shift_spacing=[2,2,2,None],
+        reg_list={
+            'd2x':[0.02, 0.01, 0.01, None],
+            'l1': [None, None, None, 0.01]
+            })
+    params['conv_filter_widths'] = [13,5,5,None]
+    params['weights_initializers'] = ['normal','normal','normal','normal']
+    network = NDN.NDN(params,
+        input_dim_list=[[1,height,width]],
+        batch_size=batch_size,
+        noise_dist='poisson')
+    network.log_correlation='filter-low-std-gold'
+    network.networks[-1].layers[-1].biases = means/2
+    fit_vars = network.fit_variables(layers_to_skip=[[]],fit_biases=True)
+    return network,fit_vars
+
+
+def define_spatial_feature_readout_network(batch_size,height,width,input_channels,neurons,channels,means):
+    params = ffnetwork_params(
+        input_dims=[input_channels,height,width], 
+        layer_sizes=[channels,channels,channels,neurons],
+        layer_types=['conv','conv','conv','spatialxfeature'], 
+        act_funcs=['softplus','softplus','lin','softplus'],
+        shift_spacing=[2,2,1,None],
+        reg_list={
+            'd2x':[0.03, None, None, None],
+            'l1': [None, 0.01, 0.01, 0.01]
+            })
+    params['conv_filter_widths'] = [13,5,5,None]
+    params['weights_initializers'] = ['normal','normal','normal','trunc_normal']
+    params['bias_initializers'] = ['zeros','zeros','zeros','trunc_normal']
+    params['pos_constraint'] = [False, False, False, True]
+    network = NDN.NDN(params,
+        input_dim_list=[[1,height,width]],
+        batch_size=batch_size,
+        noise_dist='poisson')
+    network.log_correlation='filter-low-std-gold'
+    network.networks[-1].layers[-1].biases = means/2
+    fit_vars = network.fit_variables(layers_to_skip=[[]],fit_biases=True)
+    return network,fit_vars
 
 def define_MEI_network(batch_size,height,width,input_channels,neurons,channels,means):
     ff_networks = []
     layers_to_skip = []
     chan = input_channels
     out_chans = []
+    curr_h = height
+    curr_w = width
 
     # Core 0-2
     for i in range(3):
         if i==0:
-            ff_networks.append(get_core_params(height,width,1,channels,i))
-            out_chans.append(channels)
+            ff_networks.append(get_core_params(curr_h,curr_w,1,channels,i))
+            out_chans = channels
         elif i==2:
-            ff_networks.append(get_core_params(height,width,chan,8,i))
-            out_chans.append(8)
+            ff_networks.append(get_core_params(curr_h,curr_w,chan,64,i))
+            out_chans = 64
         else:
-            ff_networks.append(get_core_params(height,width,chan,chan,i))
-            out_chans.append(chan)
-        chan = sum(out_chans)
+            ff_networks.append(get_core_params(curr_h,curr_w,chan,2*chan,i))
+            out_chans=2*chan
+        chan = out_chans
         layers_to_skip.append([])
+        curr_h = math.ceil(curr_h/2)
+        curr_w = math.ceil(curr_w/2)
 
-    curr_h = height
-    curr_w = width
     # Lowpass filter 3-5
-    for i in range(3):
-        if i==0:
-            ff_networks.append(get_lowpass_filter_params(curr_h,curr_w,chan,range(3)))
-        else:
-            ff_networks.append(get_lowpass_filter_params(curr_h,curr_w,chan,[2+i]))
-        layers_to_skip.append([0])
-        curr_h=math.ceil(curr_h/2)
-        curr_w=math.ceil(curr_w/2)
+    #for i in range(3):
+    #    if i==0:
+    #        ff_networks.append(get_lowpass_filter_params(curr_h,curr_w,chan,range(3)))
+    #    else:
+    #        ff_networks.append(get_lowpass_filter_params(curr_h,curr_w,chan,[2+i]))
+    #    layers_to_skip.append([0])
+    #   curr_h=math.ceil(curr_h/2)
+    #    curr_w=math.ceil(curr_w/2)
 
-    curr_h = height//2
-    curr_w = width//2
+    #curr_h = height//2
+    #curr_w = width//2
     # Readout layer
-    ff_networks.append(get_readout_network(chan,curr_h,curr_w,neurons,img_net=i+3))
+    ff_networks.append(get_readout_network(chan,curr_h,curr_w,neurons,img_net=2))
+    layers_to_skip.append([])
     
     network = NDN.NDN(ff_networks,
         input_dim_list=[[1,64,36]],
         batch_size=batch_size,
         noise_dist='poisson')
     network.log_correlation='filter-low-std-gold'
+    #network.networks[-1].layers[0].biases = means/2
     fit_vars = network.fit_variables(layers_to_skip=layers_to_skip,fit_biases=True)
     
     return network,fit_vars

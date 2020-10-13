@@ -63,7 +63,8 @@ def get_lowpass_filter_params(height,width,input_channels,input_num):
         shift_spacing=2,
         conv_filter_widths=[5],
         layer_types=['conv'], 
-        act_funcs=['lin']
+        act_funcs=['lin'],
+        biases_initializer='zeros'
         )
     params['ffnet_n']=input_num
     params['xstim_n']=None

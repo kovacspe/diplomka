@@ -12,7 +12,7 @@ from NDN3.NDN import NDN
 from NDN3.NDNutils import ffnetwork_params
 print('NDN imported')
 # Import network architecture
-from define_rotation_net import define_MEI_network
+from define_rotation_net import define_MEI_network, define_spatial_feature_readout_network, define_basic_readout_network 
 print('MEI net imported')
 # Import data loader
 from load_rotation_data import get_data, Dataset
@@ -37,7 +37,7 @@ def reshape_to_NDN(inp):
     return np.reshape(inp,[-1,np.prod(inp.shape[1:])])
 
 ### Tensorboard logdir setting
-name = f'new-bs{args.batch_size}-lr{args.lr}-chan{args.channels}-ep{args.epochs}-{datetime.now().strftime("%Y%m%d-%H%M%S")}'
+name = f'SFreadout-posinit-bs{args.batch_size}-lr{args.lr}-chan{args.channels}-ep{args.epochs}-{datetime.now().strftime("%Y%m%d-%H%M%S")}'
 if args.gpu:
     logdir="output/" +f'gpu-{name}'  
 else:
@@ -77,12 +77,12 @@ test_y = reshape_to_NDN(test_y)
 
 
 ### Define network
-net,fit_vars = define_MEI_network(args.batch_size,W,H,C,Neurons,args.channels,means)
+net,fit_vars = define_spatial_feature_readout_network(args.batch_size,W,H,C,Neurons,args.channels,means)
 
 opt_params = net.optimizer_defaults({},'adam')
 opt_params['batch_size'] = args.batch_size
 opt_params['learning_rate'] = args.lr
-opt_params['epochs_summary'] = 5
+opt_params['epochs_summary'] = 25
 opt_params['display'] = 1
 opt_params['use_gpu'] = GPU
 opt_params['epochs_training'] = args.epochs
@@ -110,7 +110,7 @@ if args.loadmodel is not None:
     pred = net.generate_prediction(test_x)
     corr = evaluate_performance(pred,test_y)
     print('correlation',corr)
-quit()
+
 net.log_correlation='filter-low-std-gold'
 net.train(
     train_x,
