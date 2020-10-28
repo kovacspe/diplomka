@@ -4,32 +4,9 @@ from NDN3.NDNutils import ffnetwork_params
 import NDN3.NDN as NDN
 import numpy as np
 import math
+from utils import filter_dict, create_filter
 
 
-
-filter_dict = {
-        'gauss5x5': np.float32([
-            [0.003765, 0.015019, 0.023792, 0.015019, 0.003765],
-            [0.015019, 0.059912, 0.094907, 0.059912, 0.015019],
-            [0.023792, 0.094907, 0.150342, 0.094907, 0.023792],
-            [0.015019, 0.059912, 0.094907, 0.059912, 0.015019],
-            [0.003765, 0.015019, 0.023792, 0.015019, 0.003765]]),
-        'gauss3x3': np.float32([
-            [1 / 16, 1 / 8, 1 / 16],
-            [1 / 8, 1 / 4, 1 / 8],
-            [1 / 16, 1 / 8, 1 / 16]]
-        ),
-        'laplace5x5': np.outer(np.float32([1, 4, 6, 4, 1]), np.float32([1, 4, 6, 4, 1])) / 256,
-
-    }
-
-def create_filter(filter_name,in_channels,out_channels):
-    if filter_name not in filter_dict:
-        raise AttributeError(f'filter {filter_name} doesnt exist')
-    conv_filter = filter_dict[filter_name]
-    conv_filter = np.tile(conv_filter,(in_channels,out_channels,1,1))
-    conv_filter = np.transpose(conv_filter,(3,2,0,1))
-    return conv_filter
 
 # Core - number 0,1,2
 def get_core_params(height,width,input_channels,output_channels,layer_num):

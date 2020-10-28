@@ -3,25 +3,9 @@ import NDN3.NDNutils as NDNutils
 import NDN3.NDN as NDN
 import numpy as np
 import math
+from utils import create_filter
 
-def reshape_to_NDN(inp):
-    return np.reshape(inp,[-1,np.prod(inp.shape[1:])])
 
-filter_dict = {
-        'gauss5x5': np.float32([
-            [0.003765, 0.015019, 0.023792, 0.015019, 0.003765],
-            [0.015019, 0.059912, 0.094907, 0.059912, 0.015019],
-            [0.023792, 0.094907, 0.150342, 0.094907, 0.023792],
-            [0.015019, 0.059912, 0.094907, 0.059912, 0.015019],
-            [0.003765, 0.015019, 0.023792, 0.015019, 0.003765]]),
-        'gauss3x3': np.float32([
-            [1 / 16, 1 / 8, 1 / 16],
-            [1 / 8, 1 / 4, 1 / 8],
-            [1 / 16, 1 / 8, 1 / 16]]
-        ),
-        'laplace5x5': np.outer(np.float32([1, 4, 6, 4, 1]), np.float32([1, 4, 6, 4, 1])) / 256,
-
-    }
 
 # Core - number 0,1,2
 def get_core_params(height,width,input_channels,output_channels,layer_num):
@@ -32,7 +16,7 @@ def get_core_params(height,width,input_channels,output_channels,layer_num):
     # input kernel 7
     # hidden kernel 3 .. rec kernel
     output_shape = 1
-    params = ffnetwork_params(
+    params = NDNutils.ffnetwork_params(
         input_dims=[input_channels,height,width], 
         layer_sizes=[output_channels],
         normalization=[0], 
@@ -86,7 +70,7 @@ def get_shifter_params():
 
 # Gridpoints #8
 def get_grid_shifter_params(num_neurons):
-    params = ffnetwork_params(
+    params = NDNutils.ffnetwork_params(
         input_dims=[2], 
         layer_sizes=[num_neurons],
         normalization=[0], # Check
@@ -153,7 +137,7 @@ def get_modulator_mult_params(number_of_neurons):
 def get_sampler_network(channels,height,width,n_neurons,img_net,location_net):
     d2x = 0.0005
     l1 = 0.000001
-    params = ffnetwork_params(
+    params = NDNutils.ffnetwork_params(
         input_dims=[channels,height,width],
         layer_sizes=[n_neurons],
         normalization=[0], 
@@ -225,29 +209,4 @@ def define_MEI_network(height,width,input_channels,neurons):
         pass
     return network,fit_vars
 
-import numpy as np
-import tensorflow as tf
-from datetime import datetime
-
-# Import NDN
-from NDN3.NDN import NDN
-from NDN3.NDNutils import ffnetwork_params
-
-
-logdir="output/" + datetime.now().strftime("%Y%m%d-%H%M%S")
-tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir)
-
-#Define network
-
-img = np.random.rand(14, 1, 64, 36)
-img = reshape_to_NDN(img)
-shift = np.random.rand(14, 2)
-shift = reshape_to_NDN(shift)
-beh = np.random.rand(14, 3)
-beh = reshape_to_NDN(beh)
-
-net,fit_vars = define_MEI_network(64,36,1,6000)
-with tf.Session() as sess:
-    pred = net.generate_prediction([img,beh,shift])
-file_writer = tf.summary.FileWriter(logdir, net.graph)
 
