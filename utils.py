@@ -28,6 +28,9 @@ def create_filter(filter_name, in_channels, out_channels):
 def reshape_weights_to_NDN(inp):
     return np.reshape(inp, [np.prod(inp.shape[:])])
     
+def reshape_input_to_NDN(inp):
+    return np.reshape(inp, [-1, np.prod(inp.shape[1:])])
+
 def load_cnn_sys_weight(network, np_file):
     with open(np_file, 'rb') as f:
         # Core
