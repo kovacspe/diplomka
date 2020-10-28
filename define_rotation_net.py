@@ -6,32 +6,6 @@ import numpy as np
 import math
 
 
-filter_dict = {
-    'gauss5x5': np.float32([
-        [0.003765, 0.015019, 0.023792, 0.015019, 0.003765],
-        [0.015019, 0.059912, 0.094907, 0.059912, 0.015019],
-        [0.023792, 0.094907, 0.150342, 0.094907, 0.023792],
-        [0.015019, 0.059912, 0.094907, 0.059912, 0.015019],
-        [0.003765, 0.015019, 0.023792, 0.015019, 0.003765]]),
-    'gauss3x3': np.float32([
-        [1 / 16, 1 / 8, 1 / 16],
-        [1 / 8, 1 / 4, 1 / 8],
-        [1 / 16, 1 / 8, 1 / 16]]
-    ),
-    'laplace5x5': np.outer(np.float32([1, 4, 6, 4, 1]), np.float32([1, 4, 6, 4, 1])) / 256,
-
-}
-
-
-def create_filter(filter_name, in_channels, out_channels):
-    if filter_name not in filter_dict:
-        raise AttributeError(f'filter {filter_name} doesnt exist')
-    conv_filter = filter_dict[filter_name]
-    conv_filter = np.tile(conv_filter, (in_channels, out_channels, 1, 1))
-    conv_filter = np.transpose(conv_filter, (3, 2, 0, 1))
-    return conv_filter
-
-
 def define_spatial_feature_readout_network(batch_size, height, width, input_channels, neurons, channels, means):
     params = ffnetwork_params(
         input_dims=[input_channels, height, width],
@@ -41,7 +15,7 @@ def define_spatial_feature_readout_network(batch_size, height, width, input_chan
         shift_spacing=[1, 1, 1, None],
         reg_list={
             # 'd2x': [0.03, 0.015, 0.015, None],
-            'l1': [None, None, None, 0.04]
+            'l1': [None, None, None, 0.02]
         })
     params['conv_filter_widths'] = [13, 5, 5, None]
     params['weights_initializers'] = ['trunc_normal',
