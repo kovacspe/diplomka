@@ -2,6 +2,7 @@ import numpy as np
 import pickle
 import tensorflow as tf
 from datetime import datetime
+from utils import reshape_input_to_NDN
 
 # Dataset
 class Dataset:
@@ -40,15 +41,24 @@ class Dataset:
         self.minibatch_idx = 1e10
         self.train_perm = []
 
-    def val(self):
-        return self.images_val, self.responses_val
+    def val(self,NDN_reshape=False):
+        if NDN_reshape:
+            return reshape_input_to_NDN(self.images_val),reshape_input_to_NDN(self.responses_val)
+        else:
+            return self.images_val, self.responses_val
 
-    def train(self):
-        return self.images_train, self.responses_train
+    def train(self,NDN_reshape=False):
+        if NDN_reshape:
+            return reshape_input_to_NDN(self.images_train),reshape_input_to_NDN(self.responses_train)
+        else:
+            return self.images_train, self.responses_train
 
-    def test(self, averages=True):
+    def test(self, averages=True,NDN_reshape=False):
         responses = self.responses_test.mean(axis=0) if averages else self.responses_test
-        return self.images_test, responses
+        if NDN_reshape:
+            return reshape_input_to_NDN(self.images_test),reshape_input_to_NDN(responses)
+        else:
+            return self.images_test, responses
 
     def minibatch(self, batch_size):
         if self.minibatch_idx + batch_size > self.num_train_samples:
