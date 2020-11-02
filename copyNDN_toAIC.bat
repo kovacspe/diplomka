@@ -1,0 +1,1 @@
+scp NDN3/*.py kovacspe@aic.ms.mff.cuni.cz:/home/kovacspe/diplomka/NDN3/

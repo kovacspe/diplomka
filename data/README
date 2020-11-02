@@ -1,0 +1,4 @@
+Each directory contains the recorded data and inputs for one of the three recorded regions.
+The responses are already pre-processed to give one value per image presentation (see methodology).
+Each file contains one numpy array (saved with numpy.save function).
+The name of the files are self-explanatory.

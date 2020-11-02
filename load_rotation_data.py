@@ -4,6 +4,7 @@ import tensorflow as tf
 from datetime import datetime
 from utils import reshape_input_to_NDN
 
+
 # Dataset
 class Dataset:
     def __init__(self,
