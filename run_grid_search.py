@@ -89,11 +89,41 @@ def iclr_antolik_grid_search():
                         )
                         run += 1
 
+def best_models():
+    # Fully connected
+    exp = "basicFC"
+    run = 0
+    run_job.run_qsub_cpu(
+        exp,
+        f'--model_type=\'base\' --data_type=\'antolik1\' --hidden={0.2} --reg_h={0.1} --reg_l={0.1}',
+        run
+    )
+    run += 1
 
+    # Convolutional
+    exp = "conv"
+    run_job.run_qsub_cpu(
+        exp,
+        f'--model_type=\'conv\' --data_type=\'antolik1\' --c_size={15} --channels={30} --cd2x={0.1} --hidden_t=max --hidden_s={1} --hidden_lt=conv',
+        run
+    )
+    run += 1
+
+    # Convolutional
+    exp = "sep"
+    run_job.run_qsub_cpu(
+        exp,
+        f'--model_type=\'conv\' --data_type=\'antolik1\' --c_size={3} --channels={9} --cd2x={0.1} --hidden_t=l2 --hidden_s={0.1} --hidden_lt=sep',
+        run
+    )
+    run += 1
+
+    
 
 
 if __name__ == "__main__":
     # conv_normal_grid_search()
     # conv_sep_grid_search()
     # basic_grid_search()
-    iclr_antolik_grid_search()
+    #iclr_antolik_grid_search()
+    best_models()
