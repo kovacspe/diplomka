@@ -33,3 +33,12 @@ def run_qsub_gpu(exp_name, exp_args, run):
         -o job_output/{exp_name}/o-{run}.log \
         -e job_output/{exp_name}/e-{run}.log \
             ./run_on_gpu_AIC.sh {exp_args} --exp_name={exp_name}")
+
+def run_local(exp_name, exp_args, run):
+    '''
+    Runs `./experiments/exp_folder/exp exp_args` and logs everything along the way.
+    '''
+    # CPU: qsub -q cpu.q -cwd -pe smp 4 -l gpu=1,mem_free=8G,act_mem_free=8G,h_data=20G
+
+    os.system(
+        f"python trainer.py {exp_args} --exp_name={exp_name}")
