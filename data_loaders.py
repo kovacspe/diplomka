@@ -4,30 +4,7 @@ import tensorflow as tf
 from datetime import datetime
 from utils import reshape_input_to_NDN
 import math
-
-class DataLoader:
-    def __init__(self,data_file):
-        pass
-    def val(self,NDN_reshape=False):
-        pass
-
-    def train(self,NDN_reshape=False):
-        pass
-
-    def test(self, averages=True,NDN_reshape=False):
-        pass
-
-    @property
-    def width(self):
-        pass
-
-    @property
-    def height(self):
-        pass
-
-    @property
-    def num_neurons(self):
-        pass
+from matplotlib import pyplot as plt
 
 class Dataset:
     def __init__(self,
@@ -95,10 +72,38 @@ class Dataset:
         self.minibatch_idx = 0
         self.train_perm = np.random.permutation(self.num_train_samples)
 
+
+class DataLoader:
+    def __init__(self,data_file):
+        pass
+    def val(self,NDN_reshape=False):
+        pass
+
+    def train(self,NDN_reshape=False):
+        pass
+
+    def test(self, averages=True,NDN_reshape=False):
+        pass
+
+    @property
+    def width(self):
+        pass
+
+    @property
+    def height(self):
+        pass
+
+    @property
+    def num_neurons(self):
+        pass
+
+
 class ICLRDataLoader(DataLoader):
     def __init__(self,data_file):
         with open(data_file,'rb') as file:
             self.data = pickle.load(file)
+        self.means = np.mean(self.data.train(NDN_reshape=True)[1], axis=0)/2
+
     def val(self,NDN_reshape=False):
         return self.data.val(NDN_reshape)
 
@@ -110,17 +115,17 @@ class ICLRDataLoader(DataLoader):
 
     @property
     def width(self):
-        return self.data.train[0].shape[3]
+        return self.data.px_y
 
     @property
     def height(self):
-        return self.data.train[0].shape[2]
+        print('height',self.data.train()[0].shape[1])
+        return self.data.px_x
 
     @property
     def num_neurons(self):
-        return self.data.train[1].shape[1]
+        return self.data.train()[1].shape[1]
     
-
 class AntolikDataLoader(DataLoader):
     def __init__(self, data_folder,region):
         self.data_folder=data_folder
@@ -151,9 +156,23 @@ class AntolikDataLoader(DataLoader):
         return self.train_y.shape[1]
 
     def load(self,region,data_type):
-        x = np.load(f'{self.data_folder}/region{region}/{data_type}_inputs.npy')
-        y = np.load(f'{self.data_folder}/region{region}/{data_type}_set.npy')
+        x = np.squeeze(np.load(f'{self.data_folder}/region{region}/{data_type}_inputs.npy')).astype(np.float64)
+        y = np.squeeze(np.load(f'{self.data_folder}/region{region}/{data_type}_set.npy')).astype(np.float64)
+        x = normalize_mean_std(x)
         return x,y
+
+
+def normalize_mean_std(dta):
+    '''
+    Normalizes the input np array to 0 mean and 1 standard deviation.
+    '''
+    return (dta - np.mean(dta)) / np.std(dta)
+
+def normalize_std(dta):
+    '''
+    Normalizes the input np array to 1 standard deviation.
+    '''
+    return dta / np.std(dta)
 
 def get_data_loader(data_type):
     data_path = 'data'
@@ -165,3 +184,17 @@ def get_data_loader(data_type):
         return AntolikDataLoader(data_path,3)
     if data_type=='iclr':
         return ICLRDataLoader(f'{data_path}/data.pkl')
+
+if __name__ == '__main__':
+    iclr = ICLRDataLoader(f'data/data.pkl')
+    ant = AntolikDataLoader('data',1)
+    for dtset in [iclr,ant]:
+        first_im = dtset.train(NDN_reshape=True)[0][20]
+        x,y = dtset.width ,dtset.height
+        first_im = np.reshape(first_im,(x,y))
+        plt.imshow(first_im)
+        plt.show()
+    input_dims = [-1, y, x,1]
+    #        # this is reverse-order from Matlab:
+    #        # [space-2, space-1, lags, and num_examples]
+    #        shaped_input = tf.reshape(inputs, input_dims)
