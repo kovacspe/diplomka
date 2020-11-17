@@ -54,7 +54,7 @@ class SimpleConvModel(Model):
                     normalization=[0,0, 0, 0], 
                     layer_types=['var','conv', self.args['hidden_lt'], 'normal'],
                     act_funcs=['lin','softplus', 'softplus','softplus'],
-                    shift_spacing=[0,(self.args['c_size']+1)//2, 0],
+                    shift_spacing=[1,(self.args['c_size']+1)//2, 0],
                     conv_filter_widths=[0,self.args['c_size'], 0, 0],
                     reg_list={
                         'd2x': [None,self.args['cd2x'], None , None],
