@@ -1,6 +1,6 @@
-from data_loaders import DataLoader, get_data_loader
+from data_loaders import DataLoader, get_data_loader, Dataset
 from utils import reshape_input_to_NDN,merge_train_and_val_set, evaluate_performance
-from antolik_models import FCModel, ConvDoGModel, DoGModel, SimpleConvModel
+from model import ICLRModel, FCModel, ConvDoGModel, DoGModel, SimpleConvModel
 import fire
 
 class Trainer:
@@ -10,7 +10,7 @@ class Trainer:
         self.args = kwargs
 
 
-    def print_evalution(self,net):
+    def print_evaluation(self,net):
         train_x, train_y = self.data.train(NDN_reshape=True)
         pred = net.generate_prediction(train_x)
         corr = evaluate_performance(pred, train_y)
@@ -22,24 +22,26 @@ class Trainer:
         print('Train correlation :', corr)
 
         test_x, test_y = self.data.train(NDN_reshape=True)
-        if test_x:
+        if test_x is not None:
             pred = net.generate_prediction(test_x)
             corr = evaluate_performance(pred, test_y)
             print('Test correlation :', corr)
 
 
-    def run_experiment(self,experiment_name,save_name=None):
+    def run_experiment(self,experiment_name,seed,save_name=None):
         train_x, train_y = self.data.train(NDN_reshape=True)
         val_x, val_y = self.data.val(NDN_reshape=True)
         data_x,data_y,train_idxs,test_idxs = merge_train_and_val_set(train_x,train_y,val_x,val_y)
 
         name = f'{experiment_name}-{self.model.get_name()}'
 
-        self.net = self.model.get_net()
+        self.net = self.model.get_net(seed)
+        
         opt_params = self.model.get_opt_params()
         if 'gpu' in self.args:
             opt_params['use_gpu'] = True
-        self.net.log_correlation = 'filter-low-std-gold'
+            print('using GPU')
+        self.net.log_correlation = 'zero-NaNs'
         self.net.train(
             data_x,
             data_y,
@@ -47,14 +49,14 @@ class Trainer:
             test_indxs=test_idxs,
             learning_alg='adam',
             opt_params=opt_params,
-            output_dir=f'output/{name}'
+            output_dir=f'output/{name}-seed{seed}'
         )
         self.print_evaluation(self.net)
         if save_name:
             self.net.save_model(f'models/{name}.pkl')
 
 models = {
-    #'iclr': ICLRModel,
+    'iclr': ICLRModel,
     'base': FCModel,
     'conv': SimpleConvModel,
     'dog': DoGModel,
@@ -70,8 +72,10 @@ def run(model_type,data_type,**kwargs):
     model = model_class(data_loader,kwargs)
     print('creating_trainer')
     trainer = Trainer(data_loader,model,kwargs)
-    print('Running_experiment')
-    trainer.run_experiment('exp')
+    print('Running_experiment ... ')
+    for seed in range(2):
+        print('Run with seed ', seed,' ...')
+        trainer.run_experiment(kwargs['exp_name'],seed)
     
 
 if __name__ == '__main__':
