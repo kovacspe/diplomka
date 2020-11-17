@@ -75,7 +75,7 @@ def run(model_type,data_type,**kwargs):
     print('Running_experiment ... ')
     for seed in range(2):
         print('Run with seed ', seed,' ...')
-        trainer.run_experiment(kwargs['exp_name'],seed)
+        trainer.run_experiment(kwargs['exp_name'],seed,f'{model_type}-{data_type}-{seed}')
     
 
 if __name__ == '__main__':
