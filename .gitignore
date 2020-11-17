@@ -52,3 +52,4 @@ antolik_data/
 external/
 data.pkl
 net_poisson.pkl
+data/
