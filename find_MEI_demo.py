@@ -7,7 +7,8 @@ from NDN3.NDNutils import ffnetwork_params
 from utils import filter_dict 
 from data_loaders import reshape_input_to_NDN
 import matplotlib.pyplot as plt
-from MEIutils import find_MEI, plot_filter
+from MEIutils import find_MEI, plot_filter, plot_all
+from model import FCModel
 
 single_input = np.random.random((1,5,5))
 train_inputs = np.random.random((2000,5,5))#np.ones((2000,5,5))
@@ -76,16 +77,21 @@ def find_MEI_old(net,neurons,output_size):
     
     return
 
-net = get_simple_net([5,5],2)
-net.batch_size=1
+#model_name = '.\\models\\basicFC-basicFC-hidden0.2-reg_h0.1-reg_l0.1-exp_namebasicFC.pkl'
+model_name = '.\\models\\exp_conv-conv-c_size7-channels30-cd2x0.1-hidden_tl2-hidden_s0.1-hidden_ltsep-exp_nameexp_conv.pkl'
+if model_name is None:
+    net = get_simple_net([5,5],2)
+    net.batch_size=1
 
-train_inputs = reshape_input_to_NDN(train_inputs)
-train_outputs = train_outputs
-net.train(train_inputs,train_outputs,learning_alg='lbfgs')
+    train_inputs = reshape_input_to_NDN(train_inputs)
+    train_outputs = train_outputs
+    net.train(train_inputs,train_outputs,learning_alg='lbfgs')
+else:
+    net = NDN.load_model(model_name)
 
-for neuron in range(2):
-    net = find_MEI(net,neuron)
-    plot_filter(net)
+#for neuron in range(10):
+#    net = find_MEI(net,neuron)
+plot_all(net)
 
 
 

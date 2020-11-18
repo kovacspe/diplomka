@@ -45,8 +45,6 @@ def find_MEI(net, optimize_neuron):
     # Setup data filter to filter only desired neuron
     tmp_filters = np.zeros((1, np.prod(output_shape)))
     tmp_filters[0, optimize_neuron] = 1
-    print(tmp_filters)
-
     # Weight of variable layer as the only training variable
     layers_to_skip = []
     for i,network in enumerate(net.networks):
@@ -71,8 +69,29 @@ def find_MEI(net, optimize_neuron):
     return net
 
 
-def plot_filter(net):
+def plot_filter(net,ax=None,n=None):
     var_layer_net,var_layer_layer = find_var_layer(net)
-    w = np.reshape(net.networks[var_layer_net].layers[var_layer_layer].weights, (5, 5))
-    plt.imshow(w,vmin=-1,vmax=1,cmap=plt.cm.RdYlBu)
+    _,x,y = net.input_sizes[0]
+    w = np.reshape(net.networks[var_layer_net].layers[var_layer_layer].weights, (x,y))
+    if ax is None:
+        plt.imshow(w,cmap=plt.cm.RdYlBu)
+        plt.show()
+        
+    else:
+        return imshow(w,cmap=plt.cm.RdYlBu)
+
+def get_filter(net):
+    var_layer_net,var_layer_layer = find_var_layer(net)
+    _,x,y = net.input_sizes[0]
+    return np.reshape(net.networks[var_layer_net].layers[var_layer_layer].weights, (x,y))
+
+def plot_all(net):
+    outputs = np.prod(net.output_sizes)
+    n_rows = int(np.ceil(np.sqrt(outputs)))
+    fig,ax1=plt.subplots(n_rows,n_rows)
+    for i,neuron in enumerate(range(outputs)):
+        print(f'{i}/{outputs}')
+        net = find_MEI(net,neuron)
+        w = get_filter(net)
+        ax1[i%n_rows,i//n_rows].imshow(w,cmap=plt.cm.RdYlBu)
     plt.show()
