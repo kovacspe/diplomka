@@ -102,7 +102,7 @@ def best_models():
 
     # Convolutional
     exp = "conv2"
-    run_job.run_local(
+    run_job.run_qsub_cpu(
         exp,
         f'--model_type=\'conv\' --data_type=\'antolik1\' --c_size={7} --channels={30} --cd2x={0.1} --hidden_t=max --hidden_s={1} --hidden_lt=normal',
         run
@@ -110,7 +110,7 @@ def best_models():
     run += 1
 
     exp = "conv3"
-    run_job.run_local(
+    run_job.run_qsub_cpu(
         exp,
         f'--model_type=\'conv\' --data_type=\'antolik1\' --c_size={3} --channels={9} --cd2x={0.1} --hidden_t=max --hidden_s={1} --hidden_lt=normal',
         run
@@ -119,7 +119,7 @@ def best_models():
 
     # Convolutional
     exp = "sep2"
-    run_job.run_local(
+    run_job.run_qsub_cpu(
         exp,
         f'--model_type=\'conv\' --data_type=\'antolik1\' --c_size={15} --channels={30} --cd2x={0.1} --hidden_t=l1 --hidden_s={0.2} --hidden_lt=sep',
         run
