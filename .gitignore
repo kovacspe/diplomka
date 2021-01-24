@@ -54,3 +54,5 @@ data.pkl
 net_poisson.pkl
 data/
 models/
+gan_output/
+*.bat
