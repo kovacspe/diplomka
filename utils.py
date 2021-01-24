@@ -35,7 +35,7 @@ def reshape_input_to_NDN(inp):
 def evaluate_performance(pred, gold):
     rho = np.zeros(pred.shape[0])
     for i, (res, pred) in enumerate(zip(gold, pred)):
-        if np.std(res) > 1e-5 and np.std(pred) > 1e-5:
+        if True: #np.std(res) > 1e-5 and np.std(pred) > 1e-5:
             rho[i] = stats.pearsonr(res, pred)[0]
     return rho.mean()
 
