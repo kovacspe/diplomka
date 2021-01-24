@@ -1,5 +1,5 @@
 import numpy as np
-
+import matplotlib.pyplot as plt
 class AntolikDataLoader:
     def __init__(self, data_folder):
         self.data_folder=data_folder
@@ -16,7 +16,9 @@ class AntolikDataLoader:
         return x,y
 
 if __name__ == '__main__':
-    dataset = AntolikDataLoader('antolik_data')
+    dataset = AntolikDataLoader('data')
     data_in,data_out = dataset.load_train(1)
     print(data_in.shape)
+    plt.hist(np.reshape(data_in,(1,-1)),40)
+    plt.show()
     print(data_out.shape)
