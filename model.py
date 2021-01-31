@@ -36,7 +36,7 @@ class Model:
             name+=f'-{key}{value}'
         return name
 
-        
+
 class SimpleConvModel(Model):
     def __init__(self,data_loader,args):
         super().__init__(data_loader,args)
@@ -64,6 +64,34 @@ class SimpleConvModel(Model):
         params['weights_initializers']=['normal','normal','normal','normal']
         params['biases_initializers']=['normal','trunc_normal','trunc_normal','trunc_normal']
         return params
+        
+class SimpleConvGANModel(Model):
+    def __init__(self,data_loader,args):
+        super().__init__(data_loader,args)
+        epochs = 5000
+        self.opt_params = {'display': 1,'batch_size': 16, 'use_gpu': False, 'epochs_summary': epochs//50, 'epochs_training': epochs, 'learning_rate': 0.001}
+        self.opt_params.update(self.args)
+        self.net_name = 'conv'
+        
+        
+    def get_params(self):
+        params = NDNutils.ffnetwork_params(
+                    input_dims=[10], 
+                    layer_sizes=[[31,31],30, int(0.2*self.out_num), self.out_num], # paper: 9, 0.2*output_shape
+                    ei_layers=[None,None, None, None],
+                    normalization=[0,0, 0, 0], 
+                    layer_types=['normal','conv', 'conv', 'normal'],
+                    act_funcs=['lin','softplus', 'softplus','softplus'],
+                    shift_spacing=[1,(7+1)//2, 1, 1],
+                    conv_filter_widths=[0,7, 0, 0],
+                    reg_list={
+                        'd2x': [None,0.2, None , None],
+                        'l2':[0.1,None, None, 0.1],
+                        })
+        params['weights_initializers']=['normal','normal','normal','normal']
+        params['biases_initializers']=['normal','trunc_normal','trunc_normal','trunc_normal']
+        return params
+
 
 
 

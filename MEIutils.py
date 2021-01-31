@@ -8,7 +8,10 @@ from scipy import stats
 from NDN3.NDN import NDN
 from data_loaders import AntolikDataLoader
 from NDN3 import NDNutils
-
+from sklearn.cluster import KMeans,AgglomerativeClustering
+import os
+from sklearn.metrics.pairwise import pairwise_distances
+import fire
 
 def generate_gan_net(input_noise_size, output_shape,l2_norm):
     out = output_shape[:]
@@ -16,13 +19,14 @@ def generate_gan_net(input_noise_size, output_shape,l2_norm):
     out = [16,8,8]
     params = NDNutils.ffnetwork_params(
         input_dims=[1, input_noise_size],
-        layer_sizes=[out,8,4,1],
+        layer_sizes=[out,8,4,1], 
         layer_types=['biasreg','deconv','deconv','deconv'],
         act_funcs=['relu','relu','relu','tanh'],
-        conv_filter_widths=[None,5,5,5],
+        conv_filter_widths=[None,5,5,7],
         shift_spacing=[None,2,2,1],
         reg_list={
-            'l2':[0.1,0.0001,0,0]
+            #'l2':[0.001,None,None,None],
+            'd2x': [None,None,0.1,0.1]
         },
         verbose=False)
         
@@ -86,7 +90,6 @@ def create_gan(original_net, input_noise_size, loss,l2_norm):
             if len(networks[i]['ffnet_n'])==0:
                 networks[i]['ffnet_n'] = None
             networks[i]['xstim_n'] = None
-    print(networks)
 
     
     
@@ -112,7 +115,6 @@ def create_gan(original_net, input_noise_size, loss,l2_norm):
     gan_fit_vars = new_net.fit_variables(
         layers_to_skip=layers_to_skip, fit_biases=False)
     #gan_fit_vars[0][0]['biases']=True
-    print('Fit wars',gan_fit_vars)
     return new_net, gan_fit_vars
 
 
@@ -163,7 +165,7 @@ def find_var_layer(net):
     return var_layer_net, var_layer_layer
 
 
-def find_MEI_GAN(net,optimize_neuron,noise_len,data_len,l2_norm,max_activation=None):
+def find_MEI_GAN(net,optimize_neuron,noise_len,data_len,l2_norm,max_activation=None,perc=0.9):
     # Transform network to GAN
     noise = 'gaussian' if max_activation is not None else 'max'
     new_net, fit_vars = create_gan(net,noise_len,noise,l2_norm)
@@ -177,27 +179,21 @@ def find_MEI_GAN(net,optimize_neuron,noise_len,data_len,l2_norm,max_activation=N
     tmp_filters[:, optimize_neuron] = 1
 
     # Create input
-    #noise_input = np.random.uniform(-0.5,0.5,size=input_shape)
     noise_input = np.random.normal(size=input_shape,scale=1)
     input_norm = np.sqrt(np.sum(noise_input**2,axis=1))/np.sqrt(noise_len)
-    for i in range(5):
-        print(input_norm[i],noise_input[i])
-    #quit()
+
 
     output = np.zeros(output_shape)
     if max_activation is not None:
-        output[:,optimize_neuron] = output[:,optimize_neuron]+(0.90*np.ones(output_shape[0]) *max_activation)#np.multiply((np.ones(output_shape[0]) *max_activation),(np.clip(1-input_norm,a_min=0,a_max=1)))
-        
-    print(output[:,optimize_neuron])
-    #fit_vars[0][0]['biases']=True
+        output[:,optimize_neuron] = output[:,optimize_neuron]+(perc*np.ones(output_shape[0]) *max_activation)
 
     # Optimize
     new_net.train(noise_input, output, fit_variables=fit_vars,
               data_filters=tmp_filters, learning_alg='adam',
               train_indxs=np.arange(data_len*0.9),
               test_indxs=np.arange(data_len*0.9,data_len),
-              opt_params={'display': 1,'batch_size': 256, 'use_gpu': False, 'epochs_summary': 1, 'epochs_training': 2, 'learning_rate': 0.001},
-              output_dir=f'gan_output/gan10')
+              opt_params={'display': 1,'batch_size': 256, 'use_gpu': False, 'epochs_training': 3 , 'learning_rate': 0.001}
+              )
 
     mean_pred = new_net.generate_prediction(noise_input[:10,:])
     # Extract GAN 
@@ -382,52 +378,47 @@ def compare_sta_mei(net):
 
     plt.show()
 
+def generate_equivariance(noise_len,neuron,save_path,perc):
+    model_name='models/sep2-conv-c_size15-channels30-cd2x0.1-hidden_tl1-hidden_s0.2-hidden_ltsep-exp_namesep2.pkl'
+    net = NDN.load_model(model_name)
+    net = find_MEI(net,neuron)
+    mei_stimuli = get_filter(net,reshape=False)
+    l2_norm = np.sum(mei_stimuli**2)
+    max_activation = net.generate_prediction(mei_stimuli)[0,neuron]
 
-# Load net
-model_name = '.\\models\\basicFC-basicFC-hidden0.2-reg_h0.1-reg_l0.1-exp_namebasicFC.pkl'
-NEURON = 28
-NOISE_LEN=100
-#model_name = '.\\models\\conv3-conv-c_size3-channels9-cd2x0.1-hidden_tmax-hidden_s1-hidden_ltnormal-exp_nameconv3.pkl'
-net = NDN.load_model(model_name)
-compare_sta_mei(net)
-quit()
-net = find_MEI(net,NEURON)
-mei_stimuli = get_filter(net,reshape=False)
-l2_norm = np.sum(mei_stimuli**2)
-max_activation = net.generate_prediction(mei_stimuli)[0,NEURON]
-print('Max activation: ',max_activation)
-print('L2-norm', l2_norm)
+    net = NDN.load_model(model_name)
+    gan = find_MEI_GAN(net,neuron,noise_len=noise_len,data_len=10000,l2_norm=l2_norm,max_activation=max_activation)
+    noise_input = np.random.uniform(-1,1,size=(500,noise_len))
 
-net = NDN.load_model(model_name)
-gan = find_MEI_GAN(net,NEURON,noise_len=NOISE_LEN,data_len=1000000,l2_norm=l2_norm,max_activation=max_activation)
-gan.save_model('./gan2.model')
-xy = np.mgrid[-1:1:0.2, -1:1:0.2].reshape(2,-1).T
-vecs = np.random.normal(size=(100,NOISE_LEN),scale=1)
-normalized  = 0.01*np.apply_along_axis(lambda x: x / np.linalg.norm(x),axis=1,arr=vecs)
+    image_out = gan.generate_prediction(noise_input)
 
-noise_input = vecs
+    # Cluster images
+    kmeans = AgglomerativeClustering(n_clusters=19,affinity='cosine',linkage='complete').fit(image_out)
+    x=[]
+    for i in range(19):
+        x.append(image_out[kmeans.labels_==i][0,:])
+    image_out[1:20,:]=x
 
-#noise_input = np.random.normal(size=(100,NOISE_LEN),scale=0.1)
-noise_input[1,:] = np.zeros((1,NOISE_LEN))
-image_out = gan.generate_prediction(noise_input)
+    # Compute activations
+    net = NDN.load_model(model_name)
+    activations = net.generate_prediction(image_out)
+    image_out[0,:] = mei_stimuli
+    activations[0,neuron]= max_activation
 
-net = NDN.load_model(model_name)
-activations = net.generate_prediction(image_out)
-image_out[0,:] = mei_stimuli
-activations[0,NEURON]= max_activation
+    # Plot receptive fields
+    vmin,vmax = np.min(mei_stimuli),np.max(mei_stimuli)
+    fig, ax1 = plt.subplots(10,10)
+    for i in range(100):
+        rf = np.reshape(image_out[i, :], (31, 31))
+        diff_rf = np.reshape(image_out[i, :]-mei_stimuli, (31, 31))
+        ax1[i % 10, i//10].imshow(rf, cmap=plt.cm.RdYlBu,vmin=vmin,vmax=vmax)#,vmin=vmin,vmax=vmax
+        title = 'MEI - ' if i==0 else ''
+        ax1[i % 10, i//10].set_title(f'{title}{100*(activations[i,neuron]/max_activation):.2f}',fontsize=8)
+    if save_path:
+        plt.savefig(os.path.join(save_path,f'neuron-{neuron}_p-{perc}_noiselen-{noise_len}.png'))
+    else:
+        plt.show()
 
-vmin,vmax = np.min(mei_stimuli),np.max(mei_stimuli)
-fig, ax1 = plt.subplots(10,10)
-for i in range(np.shape(image_out)[0]):
-    rf = np.reshape(image_out[i, :], (31, 31))
-    diff_rf = np.reshape(image_out[i, :]-mei_stimuli, (31, 31))
-    ax1[i % 10, i//10].imshow(rf, cmap=plt.cm.RdYlBu,vmin=vmin,vmax=vmax)
-    if i==0:
-        title='MEI - '
-    elif i==1:
-        title='Zero noise -'
-    else: 
-        title = ''
-    ax1[i % 10, i//10].set_title(f'{title}{100*(activations[i,NEURON]/max_activation):.2f}',fontsize=8)
-plt.show()
 
+if __name__ == '__main__':
+    fire.Fire(generate_equivariance)

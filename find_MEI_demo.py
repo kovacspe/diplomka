@@ -77,8 +77,8 @@ def find_MEI_old(net,neurons,output_size):
     
     return
 
-#model_name = '.\\models\\basicFC-basicFC-hidden0.2-reg_h0.1-reg_l0.1-exp_namebasicFC.pkl'
-model_name = '.\\models\\exp_conv-conv-c_size7-channels30-cd2x0.1-hidden_tl2-hidden_s0.1-hidden_ltsep-exp_nameexp_conv.pkl'
+model_name = '.\\models\\basicFC-basicFC-hidden0.2-reg_h0.1-reg_l0.1-exp_namebasicFC.pkl'
+#model_name = '.\\models\\conv3-conv-c_size3-channels9-cd2x0.1-hidden_tmax-hidden_s1-hidden_ltnormal-exp_nameconv3.pkl'
 if model_name is None:
     net = get_simple_net([5,5],2)
     net.batch_size=1
@@ -91,7 +91,7 @@ else:
 
 #for neuron in range(10):
 #    net = find_MEI(net,neuron)
-plot_all(net)
+#plot_all(net,MEI_STA=True)
 
 
 
