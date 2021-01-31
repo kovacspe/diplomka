@@ -1,6 +1,6 @@
 import os
 NEURONS = [28,74,66,23,83,53,54,72,50,24]
-PERC= [1.0,0.95,0.9,0.85]
+PERC= [1.0,0.9]
 for neuron in NEURONS:
     for perc in PERC:
         for noise_len in [64,128,256]:
