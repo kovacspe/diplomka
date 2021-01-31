@@ -192,7 +192,7 @@ def find_MEI_GAN(net,optimize_neuron,noise_len,data_len,l2_norm,max_activation=N
               data_filters=tmp_filters, learning_alg='adam',
               train_indxs=np.arange(data_len*0.9),
               test_indxs=np.arange(data_len*0.9,data_len),
-              opt_params={'display': 1,'batch_size': 256, 'use_gpu': False, 'epochs_training': 3 , 'learning_rate': 0.001}
+              opt_params={'display': 1,'batch_size': 256, 'use_gpu': False, 'epochs_training': 2 , 'learning_rate': 0.001}
               )
 
     mean_pred = new_net.generate_prediction(noise_input[:10,:])
@@ -387,7 +387,7 @@ def generate_equivariance(noise_len,neuron,save_path,perc):
     max_activation = net.generate_prediction(mei_stimuli)[0,neuron]
 
     net = NDN.load_model(model_name)
-    gan = find_MEI_GAN(net,neuron,noise_len=noise_len,data_len=10000,l2_norm=l2_norm,max_activation=max_activation)
+    gan = find_MEI_GAN(net,neuron,noise_len=noise_len,data_len=1000000,l2_norm=l2_norm,max_activation=max_activation)
     noise_input = np.random.uniform(-1,1,size=(500,noise_len))
 
     image_out = gan.generate_prediction(noise_input)
