@@ -16,11 +16,11 @@ import fire
 def generate_gan_net(input_noise_size, output_shape,l2_norm):
     out = output_shape[:]
     out[0] = 4
-    out = [16,8,8]
+    out = [32,8,8]
     params = NDNutils.ffnetwork_params(
         input_dims=[1, input_noise_size],
-        layer_sizes=[out,8,4,1], 
-        layer_types=['biasreg','deconv','deconv','deconv'],
+        layer_sizes=[out,16,8,8], 
+        layer_types=['normal','deconv','deconv','deconv'],
         act_funcs=['relu','relu','relu','tanh'],
         conv_filter_widths=[None,5,5,7],
         shift_spacing=[None,2,2,1],
@@ -32,12 +32,7 @@ def generate_gan_net(input_noise_size, output_shape,l2_norm):
         
     params['xstim_n'] = [0]
     params['normalize_output'] =  [None,None,None,l2_norm]
-    params['bias_reg_initalizer'] = [
-            {'l2':2},
-            {},
-            {},
-            {}
-        ]
+
     params['output_shape'] = [None,None,[31,31],[31,31]]
     return params
 
