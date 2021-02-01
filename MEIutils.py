@@ -22,7 +22,7 @@ def generate_gan_net(input_noise_size, output_shape,l2_norm):
         layer_sizes=[out,16,8,8], 
         layer_types=['normal','deconv','deconv','deconv'],
         act_funcs=['relu','relu','relu','tanh'],
-        conv_filter_widths=[None,5,5,7],
+        conv_filter_widths=[None,5,5,5],
         shift_spacing=[None,2,2,1],
         reg_list={
             #'l2':[0.001,None,None,None],
