@@ -162,7 +162,7 @@ def find_var_layer(net):
 
 def find_MEI_GAN(net,optimize_neuron,noise_len,data_len,l2_norm,max_activation=None,perc=0.9):
     # Transform network to GAN
-    noise = 'gaussian' if max_activation is not None else 'max'
+    noise = 'oneside-gaussian' if max_activation is not None else 'max'
     new_net, fit_vars = create_gan(net,noise_len,noise,l2_norm)
 
     # Get network input and output shapes
@@ -373,7 +373,7 @@ def compare_sta_mei(net):
 
     plt.show()
 
-def generate_equivariance(noise_len,neuron,save_path,perc):
+def generate_equivariance(noise_len,neuron,save_path,perc,name):
     model_name='models/sep2-conv-c_size15-channels30-cd2x0.1-hidden_tl1-hidden_s0.2-hidden_ltsep-exp_namesep2.pkl'
     net = NDN.load_model(model_name)
     net = find_MEI(net,neuron)
@@ -410,7 +410,7 @@ def generate_equivariance(noise_len,neuron,save_path,perc):
         title = 'MEI - ' if i==0 else ''
         ax1[i % 10, i//10].set_title(f'{title}{100*(activations[i,neuron]/max_activation):.2f}',fontsize=8)
     if save_path:
-        plt.savefig(os.path.join(save_path,f'neuron-{neuron}_p-{perc}_noiselen-{noise_len}.png'))
+        plt.savefig(os.path.join(save_path,f'{name}-neuron-{neuron}_p-{perc}_noiselen-{noise_len}.png'))
     else:
         plt.show()
 
