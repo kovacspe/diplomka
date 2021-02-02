@@ -19,7 +19,7 @@ def generate_gan_net(input_noise_size, output_shape,l2_norm):
     out = [32,8,8]
     params = NDNutils.ffnetwork_params(
         input_dims=[1, input_noise_size],
-        layer_sizes=[out,16,8,8], 
+        layer_sizes=[out,16,16,1], 
         layer_types=['normal','deconv','deconv','deconv'],
         act_funcs=['relu','relu','relu','tanh'],
         conv_filter_widths=[None,5,5,5],
