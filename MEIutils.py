@@ -406,7 +406,7 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name):
     for i in range(100):
         rf = np.reshape(image_out[i, :], (31, 31))
         diff_rf = np.reshape(image_out[i, :]-mei_stimuli, (31, 31))
-        ax1[i % 10, i//10].imshow(rf, cmap=plt.cm.RdYlBu,vmin=vmin,vmax=vmax)#,vmin=vmin,vmax=vmax
+        ax1[i % 10, i//10].imshow(rf, cmap=plt.cm.RdYlBu)#,vmin=vmin,vmax=vmax
         title = 'MEI - ' if i==0 else ''
         ax1[i % 10, i//10].set_title(f'{title}{100*(activations[i,neuron]/max_activation):.2f}',fontsize=8)
     if save_path:
