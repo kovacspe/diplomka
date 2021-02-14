@@ -132,15 +132,15 @@ class DoGModel(Model):
         hsm_params = NDNutils.ffnetwork_params(
             input_dims=[1, self.width, self.height], 
             layer_sizes=[9,9,int(0.2*self.out_num), self.out_num], # paper: 9, 0.2*output_shape
-            ei_layers=[None, None, None],
-            normalization=[0,0, 0], 
+            ei_layers=[None,None, None, None],
+            normalization=[0,0,0, 0], 
             layer_types=['var','diff_of_gaussians','normal','normal'],
             act_funcs=['lin','lin','softplus','softplus'],
             reg_list={
-                'l2':[None,None, 0.1],
+                'l2':[None,None,None, 0.1],
                 })
-        hsm_params['weights_initializers']=['normal','normal','normal']
-        hsm_params['biases_initializers']=['trunc_normal','trunc_normal','trunc_normal']
+        hsm_params['weights_initializers']=['normal','normal','normal','normal']
+        hsm_params['biases_initializers']=['trunc_normal','trunc_normal','trunc_normal','trunc_normal']
 
         return hsm_params
 
@@ -155,19 +155,19 @@ class ConvDoGModel(Model):
     def get_params(self):
         hsm_params = NDNutils.ffnetwork_params(
             input_dims=[1, self.width, self.height], 
-            layer_sizes=[int(self.args['hidden']),int(0.2*self.out_num), self.out_num], # paper: 9, 0.2*output_shape
-            ei_layers=[None, None, None],
-            normalization=[0,0, 0], 
-            layer_types=['conv_diff_of_gaussians', self.args['layer'], 'normal'],
-            act_funcs=['lin','softplus','softplus'],
+            layer_sizes=[int(self.args['hidden']),int(self.args['hidden']),int(0.2*self.out_num), self.out_num], # paper: 9, 0.2*output_shape
+            ei_layers=[None,None, None, None],
+            normalization=[0,0,0, 0], 
+            layer_types=['var','conv_diff_of_gaussians', self.args['layer'], 'normal'],
+            act_funcs=['lin','lin','softplus','softplus'],
             shift_spacing=[(self.args['c_size']+1)//2, 0],
-            conv_filter_widths=[self.args['c_size'], 0, 0],
+            conv_filter_widths=[self.args['c_size'],self.args['c_size'], 0, 0],
             reg_list={
-                'l2':[None,None, 0.1],
-                'l1':[None,self.args['reg_h'], None],
+                'l2':[None,None,None, 0.1],
+                'l1':[None,None,self.args['reg_h'], None],
                 })
-        hsm_params['weights_initializers']=['normal','normal','normal']
-        hsm_params['biases_initializers']=['trunc_normal','trunc_normal','trunc_normal']
+        hsm_params['weights_initializers']=['normal','normal','normal','normal']
+        hsm_params['biases_initializers']=['trunc_normal','trunc_normal','trunc_normal','trunc_normal']
 
         return hsm_params
 
