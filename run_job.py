@@ -19,7 +19,7 @@ def run_qsub_cpu(exp_name, exp_args, run):
         f"qsub -q cpu.q -cwd -pe smp 4 -l mem_free=8G,act_mem_free=8G,h_data=20G \
         -o job_output/o-{exp_name}-{run}.log \
         -e job_output/e-{exp_name}-{run}.log \
-            ./run_on_cpu_AIC.sh {exp_args} --exp_name={exp_name}")
+            ./scripts/run_on_cpu_AIC.sh {exp_args} --exp_name={exp_name}")
 
 
 def run_qsub_gpu(exp_name, exp_args, run):
@@ -32,7 +32,7 @@ def run_qsub_gpu(exp_name, exp_args, run):
         f"qsub -q gpu.q -cwd -l gpu=1,mem_free=8G,act_mem_free=8G,h_data=20G \
         -o job_output/{exp_name}/o-{run}.log \
         -e job_output/{exp_name}/e-{run}.log \
-            ./run_on_gpu_AIC.sh {exp_args} --exp_name={exp_name}")
+            ./scripts/run_on_gpu_AIC.sh {exp_args} --exp_name={exp_name}")
 
 def run_local(exp_name, exp_args, run):
     '''
