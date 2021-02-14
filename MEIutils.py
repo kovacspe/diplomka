@@ -373,15 +373,14 @@ def compare_sta_mei(net):
 
     plt.show()
 
-def generate_equivariance(noise_len,neuron,save_path,perc,name):
-    model_name='models/sep2-conv-c_size15-channels30-cd2x0.1-hidden_tl1-hidden_s0.2-hidden_ltsep-exp_namesep2.pkl'
-    net = NDN.load_model(model_name)
+def generate_equivariance(noise_len,neuron,save_path,perc,name,model):
+    net = NDN.load_model(model)
     net = find_MEI(net,neuron)
     mei_stimuli = get_filter(net,reshape=False)
     l2_norm = np.sum(mei_stimuli**2)
     max_activation = net.generate_prediction(mei_stimuli)[0,neuron]
 
-    net = NDN.load_model(model_name)
+    net = NDN.load_model(model)
     gan = find_MEI_GAN(net,neuron,noise_len=noise_len,data_len=1000000,l2_norm=l2_norm,max_activation=max_activation)
     noise_input = np.random.uniform(-1,1,size=(500,noise_len))
 
@@ -390,27 +389,27 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name):
     # Cluster images
     kmeans = AgglomerativeClustering(n_clusters=19,affinity='cosine',linkage='complete').fit(image_out)
     x=[]
-    for i in range(19):
+    for i in range(24):
         x.append(image_out[kmeans.labels_==i][0,:])
-    image_out[1:20,:]=x
+    image_out[1:25,:]=x
 
     # Compute activations
-    net = NDN.load_model(model_name)
+    net = NDN.load_model(model)
     activations = net.generate_prediction(image_out)
     image_out[0,:] = mei_stimuli
     activations[0,neuron]= max_activation
 
     # Plot receptive fields
     vmin,vmax = np.min(mei_stimuli),np.max(mei_stimuli)
-    fig, ax1 = plt.subplots(10,10)
-    for i in range(100):
+    fig, ax1 = plt.subplots(5,5)
+    for i in range(25):
         rf = np.reshape(image_out[i, :], (31, 31))
         diff_rf = np.reshape(image_out[i, :]-mei_stimuli, (31, 31))
-        ax1[i % 10, i//10].imshow(rf, cmap=plt.cm.RdYlBu)#,vmin=vmin,vmax=vmax
+        ax1[i % 5, i//5].imshow(rf, cmap=plt.cm.RdYlBu)#,vmin=vmin,vmax=vmax
         title = 'MEI - ' if i==0 else ''
-        ax1[i % 10, i//10].set_title(f'{title}{100*(activations[i,neuron]/max_activation):.2f}',fontsize=8)
+        ax1[i % 5, i//5].set_title(f'{title}{100*(activations[i,neuron]/max_activation):.2f}',fontsize=8)
     if save_path:
-        plt.savefig(os.path.join(save_path,f'{name}-neuron-{neuron}_p-{perc}_noiselen-{noise_len}.png'))
+        plt.savefig(os.path.join(save_path,f'{name}-neuron-{neuron}_p-{perc}_noiselen-{noise_len}_model-{model[:10]}.png'))
     else:
         plt.show()
 
