@@ -160,7 +160,7 @@ class ConvDoGModel(Model):
             normalization=[0,0,0, 0], 
             layer_types=['var','conv_diff_of_gaussians', self.args['layer'], 'normal'],
             act_funcs=['lin','lin','softplus','softplus'],
-            shift_spacing=[(self.args['c_size']+1)//2, 0],
+            shift_spacing=[1,(self.args['c_size']+1)//2, 1,1],
             conv_filter_widths=[self.args['c_size'],self.args['c_size'], 0, 0],
             reg_list={
                 'l2':[None,None,None, 0.1],
