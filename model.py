@@ -93,8 +93,6 @@ class SimpleConvGANModel(Model):
         return params
 
 
-
-
 class FCModel(Model):
     def __init__(self,data_loader,args):
         super().__init__(data_loader,args)
@@ -122,11 +120,56 @@ class FCModel(Model):
 
 
 class DoGModel(Model):
-    def get_paramas(self, channels, filt_size, neurons):
-        pass
+
+    def __init__(self,data_loader,args):
+        super().__init__(data_loader,args)
+        epochs = 5000
+        self.opt_params = {'batch_size': 16, 'use_gpu': False, 'epochs_summary': epochs//50, 'epochs_training': epochs, 'learning_rate': 0.001}
+        self.opt_params.update(self.args)
+        self.net_name = 'basicFC'
+
+    def get_params(self):
+        hsm_params = NDNutils.ffnetwork_params(
+            input_dims=[1, self.width, self.height], 
+            layer_sizes=[9,9,int(0.2*self.out_num), self.out_num], # paper: 9, 0.2*output_shape
+            ei_layers=[None, None, None],
+            normalization=[0,0, 0], 
+            layer_types=['var','diff_of_gaussians','normal','normal'],
+            act_funcs=['lin','lin','softplus','softplus'],
+            reg_list={
+                'l2':[None,None, 0.1],
+                })
+        hsm_params['weights_initializers']=['normal','normal','normal']
+        hsm_params['biases_initializers']=['trunc_normal','trunc_normal','trunc_normal']
+
+        return hsm_params
 
 class ConvDoGModel(Model):
-    pass
+    def __init__(self,data_loader,args):
+        super().__init__(data_loader,args)
+        epochs = 5000
+        self.opt_params = {'batch_size': 16, 'use_gpu': False, 'epochs_summary': epochs//50, 'epochs_training': epochs, 'learning_rate': 0.001}
+        self.opt_params.update(self.args)
+        self.net_name = 'basicFC'
+
+    def get_params(self):
+        hsm_params = NDNutils.ffnetwork_params(
+            input_dims=[1, self.width, self.height], 
+            layer_sizes=[int(self.args['hidden']),int(0.2*self.out_num), self.out_num], # paper: 9, 0.2*output_shape
+            ei_layers=[None, None, None],
+            normalization=[0,0, 0], 
+            layer_types=['conv_diff_of_gaussians', self.args['layer'], 'normal'],
+            act_funcs=['lin','softplus','softplus'],
+            shift_spacing=[(self.args['c_size']+1)//2, 0],
+            conv_filter_widths=[self.args['c_size'], 0, 0],
+            reg_list={
+                'l2':[None,None, 0.1],
+                'l1':[None,self.args['reg_h'], None],
+                })
+        hsm_params['weights_initializers']=['normal','normal','normal']
+        hsm_params['biases_initializers']=['trunc_normal','trunc_normal','trunc_normal']
+
+        return hsm_params
 
 class ICLRModel(Model):
     def get_params(self):
