@@ -139,7 +139,7 @@ class DoGModel(Model):
             reg_list={
                 'l2':[None,None,None, 0.1],
                 })
-        hsm_params['weights_initializers']=['normal','normal','normal','normal']
+        hsm_params['weights_initializers']=['random','normal','normal','normal']
         hsm_params['biases_initializers']=['trunc_normal','trunc_normal','trunc_normal','trunc_normal']
 
         return hsm_params
@@ -166,7 +166,7 @@ class ConvDoGModel(Model):
                 'l2':[None,None,None, 0.1],
                 'l1':[None,None,self.args['reg_h'], None],
                 })
-        hsm_params['weights_initializers']=['normal','normal','normal','normal']
+        hsm_params['weights_initializers']=['random','normal','normal','normal']
         hsm_params['biases_initializers']=['trunc_normal','trunc_normal','trunc_normal','trunc_normal']
 
         return hsm_params
