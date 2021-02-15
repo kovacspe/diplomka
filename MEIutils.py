@@ -387,7 +387,7 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model):
     image_out = gan.generate_prediction(noise_input)
 
     # Cluster images
-    kmeans = AgglomerativeClustering(n_clusters=19,affinity='cosine',linkage='complete').fit(image_out)
+    kmeans = AgglomerativeClustering(n_clusters=24,affinity='cosine',linkage='complete').fit(image_out)
     x=[]
     for i in range(24):
         x.append(image_out[kmeans.labels_==i][0,:])
