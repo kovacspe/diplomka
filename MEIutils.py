@@ -399,7 +399,7 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model):
     activations = net.generate_prediction(image_out)
     image_out[0,:] = mei_stimuli
     activations[0,neuron]= max_activation
-    model_slug = net.split('/')[1][:10]
+    model_slug = model.split('/')[1][:10]
     # Plot receptive fields
     vmin,vmax = np.min(mei_stimuli),np.max(mei_stimuli)
     fig, ax1 = plt.subplots(5,5)
