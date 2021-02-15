@@ -395,10 +395,11 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model):
 
     # Compute activations
     net = NDN.load_model(model)
+    
     activations = net.generate_prediction(image_out)
     image_out[0,:] = mei_stimuli
     activations[0,neuron]= max_activation
-
+    model_slug = net.split('/')[1][:10]
     # Plot receptive fields
     vmin,vmax = np.min(mei_stimuli),np.max(mei_stimuli)
     fig, ax1 = plt.subplots(5,5)
@@ -409,7 +410,7 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model):
         title = 'MEI - ' if i==0 else ''
         ax1[i % 5, i//5].set_title(f'{title}{100*(activations[i,neuron]/max_activation):.2f}',fontsize=8)
     if save_path:
-        plt.savefig(os.path.join(save_path,f'{name}-neuron-{neuron}_p-{perc}_noiselen-{noise_len}_model-{model[:10]}.png'))
+        plt.savefig(os.path.join(save_path,f'{name}-neuron-{neuron}_p-{perc}_noiselen-{noise_len}_model-{model_slug}.png'))
     else:
         plt.show()
 
