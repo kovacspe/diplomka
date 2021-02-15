@@ -126,7 +126,7 @@ class DoGModel(Model):
         epochs = 5000
         self.opt_params = {'batch_size': 16, 'use_gpu': False, 'epochs_summary': epochs//50, 'epochs_training': epochs, 'learning_rate': 0.001}
         self.opt_params.update(self.args)
-        self.net_name = 'basicFC'
+        self.net_name = 'DoG'
 
     def get_params(self):
         hsm_params = NDNutils.ffnetwork_params(
@@ -150,7 +150,7 @@ class ConvDoGModel(Model):
         epochs = 5000
         self.opt_params = {'batch_size': 16, 'use_gpu': False, 'epochs_summary': epochs//50, 'epochs_training': epochs, 'learning_rate': 0.001}
         self.opt_params.update(self.args)
-        self.net_name = 'basicFC'
+        self.net_name = 'convDoG'
 
     def get_params(self):
         hsm_params = NDNutils.ffnetwork_params(
