@@ -5,7 +5,7 @@ from NDN3.NDN import NDN
 from NDN3 import NDNutils
 
 class GeneratorNet:
-    def __init__(self,original_net,input_noise_size,loss='oneside-gaussian',is_vaegan=False):
+    def __init__(self,original_net,input_noise_size,loss='oneside-gaussian',is_aegan=False):
         # Save parameters
         self.original_net = original_net
         self.noise_size = input_noise_size
@@ -17,8 +17,8 @@ class GeneratorNet:
         input_net = []
         for inet, net_param in enumerate(networks):
             if net_param['xstim_n'] is not None:
-                if net_param['xstim_n']>0:
-                    raise NotImplementedError('GAN does not support multiple inputs. Original net should have only one visual input')
+                if len(net_param['xstim_n'])>1 or net_param['xstim_n'][0]>0:
+                    raise NotImplementedError(f'GAN does not support multiple inputs. Original net should have only one visual input. Current input: '+str(net_param['xstim_n']))
                 input_net.append((inet, net_param['xstim_n']))
 
         #
@@ -26,7 +26,7 @@ class GeneratorNet:
         gan_nets=[]
         # Add first layer into ff_net params
         for inp_size in original_net.input_sizes:
-            gan_nets.append(self.generate_gan_net(input_noise_size, inp_size))
+            gan_nets.append(self.get_gan_subnet(input_noise_size, inp_size))
         num_generator_nets = len(gan_nets)
         self.generator_subnet_ids = list(range(num_generator_nets))
 
@@ -49,7 +49,10 @@ class GeneratorNet:
                     networks[i]['ffnet_n'] = None
                 networks[i]['xstim_n'] = None
 
-        if is_vaegan:
+        if is_aegan:
+            encoders = []
+            for generator_id in self.generator_subnet_ids:
+                encoders = self.get_encoder()
             pass
         
         # Define new NDN
@@ -61,7 +64,7 @@ class GeneratorNet:
 
         # Copy weight from original net
         for i in range(num_generator_nets,len(networks)):
-            _copy_net_params(original_net, self.net_with_generator, i-num_generator_nets, i)
+            GeneratorNet._copy_net_params(original_net, self.net_with_generator, i-num_generator_nets, i)
 
         # Construct fit vars
         layers_to_skip = []
@@ -103,7 +106,7 @@ class GeneratorNet:
         if not isinstance(l2_norm,list):
             l2_norm = [l2_norm]
         for subnet_id, subnet_l2_norm in zip(self.generator_subnet_ids,l2_norm):
-            self.net_with_generator.network_list[subnet_id]['normalize_output'] = subnet_l2_norm
+            self.net_with_generator.networks[subnet_id].layers[-1].normalize_output = subnet_l2_norm
 
 
         # Generator training
@@ -129,15 +132,37 @@ class GeneratorNet:
         if generator_subnet_id not in self.generator_subnet_ids:
             raise IndexError(f'Subnet with id {generator_subnet_id} is not a generator')
         # Extracts generator as a simple 1-layer net with biases
-        if self.net.network_list[generator_subnet_id]['xstim_n'] is None:
+        if self.net_with_generator.network_list[generator_subnet_id]['xstim_n'] is None:
             raise AttributeError(f'Network {generator_subnet_id} is not connected to input')
-        generator_subnet = NDN([self.net.network_list[generator_subnet_id]],
-        noise_dist='max',input_dim_list=[self.net.network_list[generator_subnet_id]['input_dims']])
+        generator_subnet = NDN(
+            [self.net_with_generator.network_list[generator_subnet_id]],
+            noise_dist='max',
+            input_dim_list=[self.net_with_generator.network_list[generator_subnet_id]['input_dims']]
+        )
 
         # Copy weights
-        _copy_net_params(self.net,generator_subnet,generator_subnet_id,0)
+        GeneratorNet._copy_net_params(
+            self.net_with_generator,
+            generator_subnet,
+            generator_subnet_id,
+            0
+        )
 
         return generator_subnet
+    
+    def generate_stimulus(
+        self,
+        generator_subnet_id=0,
+        num_samples=1000,
+        noise_input=None
+    ):
+        # Generate noise_input if not specified
+        if noise_input is None:
+            noise_input = np.random.uniform(-1,1,size=(num_samples,self.noise_size))
+        generator = self.extract_generator(generator_subnet_id)
+        image_out = generator.generate_prediction(noise_input)
+        return image_out
+
 
     @staticmethod
     def _copy_net_params(original_NDN_net, target_NDN_net, net_num_original, net_num_target):
@@ -145,7 +170,7 @@ class GeneratorNet:
             layer_target.copy_layer_params(layer_source)
 
 
-    def generate_gan_subnet(self,input_noise_size, output_shape,):
+    def get_gan_subnet(self,input_noise_size, output_shape):
         out = output_shape[:]
         out[0] = 4
         out = [32,8,8]
@@ -169,3 +194,19 @@ class GeneratorNet:
         params['output_shape'] = [None,None,[31,31],[31,31]]
         return params
 
+    def get_encoder(self,noise_size, output_shape):
+        params = NDNutils.ffnetwork_params(
+            input_dims=[1, output_shape],
+            layer_sizes=[out,16,16,1], 
+            layer_types=['normal','deconv','deconv','deconv'],
+            act_funcs=['relu','relu','relu','tanh'],
+            conv_filter_widths=[None,7,5,5],
+            shift_spacing=[None,2,2,1],
+            reg_list={
+                #'l2':[0.001,None,None,None],
+                'd2x': [None,None,0.1,0.1]
+            },
+            verbose=False
+        )
+
+        return params
