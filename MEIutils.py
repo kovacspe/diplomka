@@ -11,6 +11,7 @@ from NDN3 import NDNutils
 from sklearn.cluster import KMeans,AgglomerativeClustering
 import os
 from sklearn.metrics.pairwise import pairwise_distances
+from generator_net import GeneratorNet
 import fire
 
 def generate_gan_net(input_noise_size, output_shape,l2_norm):
@@ -187,7 +188,7 @@ def find_MEI_GAN(net,optimize_neuron,noise_len,data_len,l2_norm,max_activation=N
               data_filters=tmp_filters, learning_alg='adam',
               train_indxs=np.arange(data_len*0.9),
               test_indxs=np.arange(data_len*0.9,data_len),
-              opt_params={'display': 1,'batch_size': 256, 'use_gpu': False, 'epochs_training': 2 , 'learning_rate': 0.001}
+              opt_params={'display': 1,'batch_size': 256, 'use_gpu': False, 'epochs_training': 1 , 'learning_rate': 0.001}
               )
 
     mean_pred = new_net.generate_prediction(noise_input[:10,:])
@@ -373,7 +374,29 @@ def compare_sta_mei(net):
 
     plt.show()
 
-def generate_equivariance(noise_len,neuron,save_path,perc,name,model):
+def plot_rfs(image_out,activations,save_path,scale_by_first=True,plot_diff=True):
+    
+    vmin,vmax = np.min(image_out[0,:]),np.max(image_out[0,:])
+    fig, ax1 = plt.subplots(5,5,figsize=(20,20))
+
+    for i in range(25):
+        if plot_diff:
+            rf = np.reshape(image_out[i, :]-image_out[0,:], (31, 31))
+            ax1[i % 5, i//5].imshow(rf, cmap=plt.cm.RdYlBu)
+        else:
+            rf = np.reshape(image_out[i, :], (31, 31))
+            if scale_by_first:
+                ax1[i % 5, i//5].imshow(rf, cmap=plt.cm.RdYlBu,vmin=vmin,vmax=vmax)
+            else:
+                ax1[i % 5, i//5].imshow(rf, cmap=plt.cm.RdYlBu)
+        title = 'MEI - ' if i==0 else ''
+        ax1[i % 5, i//5].set_title(f'{title}{100*(activations[i]/activations[0]):.2f}',fontsize=20)
+    if save_path:
+        plt.savefig(save_path)
+    else:
+        plt.show()
+
+def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_len=1000000):
     net = NDN.load_model(model)
     net = find_MEI(net,neuron)
     mei_stimuli = get_filter(net,reshape=False)
@@ -381,10 +404,17 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model):
     max_activation = net.generate_prediction(mei_stimuli)[0,neuron]
 
     net = NDN.load_model(model)
-    gan = find_MEI_GAN(net,neuron,noise_len=noise_len,data_len=1000000,l2_norm=l2_norm,max_activation=max_activation)
-    noise_input = np.random.uniform(-1,1,size=(500,noise_len))
-
-    image_out = gan.generate_prediction(noise_input)
+    generator_net = GeneratorNet(net,noise_len=noise_len)
+    generator_net.auto_train_generator(
+        neuron,
+        data_len=train_set_len,
+        l2_norm=l2_norm,
+        max_activation=max_activation,
+        perc=perc)
+    image_out = generator_net.generate_stimulus(500)
+    # gan = find_MEI_GAN(net,neuron,noise_len=noise_len,data_len=512,l2_norm=l2_norm,max_activation=max_activation)
+    # noise_input = np.random.uniform(-1,1,size=(500,noise_len))
+    # image_out = gan.generate_prediction(noise_input)
 
     # Cluster images
     kmeans = AgglomerativeClustering(n_clusters=24,affinity='cosine',linkage='complete').fit(image_out)
@@ -394,25 +424,18 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model):
     image_out[1:25,:]=x
 
     # Compute activations
-    net = NDN.load_model(model)
+    # net = NDN.load_model(model)
     
     activations = net.generate_prediction(image_out)
     image_out[0,:] = mei_stimuli
     activations[0,neuron]= max_activation
+    activations = activations[:,neuron]
     model_slug = model.split('/')[1][:10]
     # Plot receptive fields
-    vmin,vmax = np.min(mei_stimuli),np.max(mei_stimuli)
-    fig, ax1 = plt.subplots(5,5)
-    for i in range(25):
-        rf = np.reshape(image_out[i, :], (31, 31))
-        diff_rf = np.reshape(image_out[i, :]-mei_stimuli, (31, 31))
-        ax1[i % 5, i//5].imshow(rf, cmap=plt.cm.RdYlBu)#,vmin=vmin,vmax=vmax
-        title = 'MEI - ' if i==0 else ''
-        ax1[i % 5, i//5].set_title(f'{title}{100*(activations[i,neuron]/max_activation):.2f}',fontsize=8)
-    if save_path:
-        plt.savefig(os.path.join(save_path,f'{name}-neuron-{neuron}_p-{perc}_noiselen-{noise_len}_model-{model_slug}.png'))
-    else:
-        plt.show()
+    if save_path is not None:
+        save_path = os.path.join(save_path,f'{name}-neuron-{neuron}_p-{perc}_noiselen-{noise_len}_model-{model_slug}.png')
+    plot_rfs(image_out,activations,save_path)
+
 
 
 if __name__ == '__main__':
