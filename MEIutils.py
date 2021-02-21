@@ -88,7 +88,6 @@ def create_gan(original_net, input_noise_size, loss,l2_norm):
             networks[i]['xstim_n'] = None
 
     
-    
     # Define new NDN
     new_net = NDN(networks,
                       input_dim_list=[[1, input_noise_size]],
@@ -404,6 +403,7 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_l
     max_activation = net.generate_prediction(mei_stimuli)[0,neuron]
 
     net = NDN.load_model(model)
+
     generator_net = GeneratorNet(net,input_noise_size=noise_len)
     generator_net.train_generator_on_neuron(
         neuron,
@@ -412,17 +412,14 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_l
         max_activation=max_activation,
         perc=perc)
     image_out = generator_net.generate_stimulus(num_samples=500)
-    # gan = find_MEI_GAN(net,neuron,noise_len=noise_len,data_len=512,l2_norm=l2_norm,max_activation=max_activation)
-    # noise_input = np.random.uniform(-1,1,size=(500,noise_len))
-    # image_out = gan.generate_prediction(noise_input)
-    print(image_out)
+
     # Cluster images
     kmeans = AgglomerativeClustering(n_clusters=24,affinity='cosine',linkage='complete').fit(image_out)
     x=[]
     for i in range(24):
         x.append(image_out[kmeans.labels_==i][0,:])
     image_out[1:25,:]=x
-    print(image_out)
+
     # Compute activations
     net = NDN.load_model(model)
     
@@ -430,12 +427,11 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_l
     image_out[0,:] = mei_stimuli
     activations[0,neuron]= max_activation
     activations = activations[:,neuron]
-    print(activations)
     model_slug = model.split('/')[1][:10]
     # Plot receptive fields 
     if save_path is not None:
         save_path = os.path.join(save_path,f'{name}-neuron-{neuron}_p-{perc}_noiselen-{noise_len}_model-{model_slug}.png')
-    plot_rfs(image_out,activations,save_path)
+    plot_rfs(image_out,activations,save_path,scale_by_first=True)
 
 
 

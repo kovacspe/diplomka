@@ -18,7 +18,7 @@ class GeneratorNet:
         for inet, net_param in enumerate(networks):
             if net_param['xstim_n'] is not None:
                 if len(net_param['xstim_n'])>1 or net_param['xstim_n'][0]>0:
-                    raise NotImplementedError(f'GAN does not support multiple inputs. Original net should have only one visual input. Current input: '+str(net_param['xstim_n']))
+                    raise NotImplementedError('GAN does not support multiple inputs. Original net should have only one visual input. Current input: '+str(net_param['xstim_n']))
                 input_net.append((inet, net_param['xstim_n']))
 
         #
@@ -49,16 +49,20 @@ class GeneratorNet:
                     networks[i]['ffnet_n'] = None
                 networks[i]['xstim_n'] = None
 
+        ffnet_out=len(networks)-1
         if is_aegan:
+            ffnet_out=[ffnet_out]
             encoders = []
             for generator_id in self.generator_subnet_ids:
-                encoders = self.get_encoder()
-            pass
+                encoders.append(self.get_encoder())
+                ffnet_out.append()
         
+
         # Define new NDN
         self.net_with_generator = NDN(networks,
                         input_dim_list=[[1, input_noise_size]],
                         batch_size=original_net.batch_size if original_net.batch_size is not None else 265,
+                        ffnet_out=ffnet_out,
                         noise_dist=loss,
                         tf_seed=250)
 
@@ -114,7 +118,8 @@ class GeneratorNet:
             noise_input, 
             output, 
             fit_variables=self.generator_fit_vars,
-            data_filters=tmp_filters, learning_alg='adam',
+            data_filters=tmp_filters, 
+            learning_alg='adam',
             train_indxs=np.arange(data_len*0.9),
             test_indxs=np.arange(data_len*0.9,data_len),
             opt_params={
@@ -130,10 +135,10 @@ class GeneratorNet:
     def extract_generator(self,generator_subnet_id=0):
         # Check if subnet on id `generator_subnet_id` is a generator
         if generator_subnet_id not in self.generator_subnet_ids:
-            raise IndexError(f'Subnet with id {generator_subnet_id} is not a generator')
-        # Extracts generator as a simple 1-layer net with biases
+            raise IndexError(f'Subnet with id {generator_subnet_id} is not a generator')   
         if self.net_with_generator.network_list[generator_subnet_id]['xstim_n'] is None:
             raise AttributeError(f'Network {generator_subnet_id} is not connected to input')
+        # Extracts generator as a simple 1-layer net with biases
         generator_subnet = NDN(
             [self.net_with_generator.network_list[generator_subnet_id]],
             noise_dist='max',
@@ -179,7 +184,7 @@ class GeneratorNet:
             layer_sizes=[out,16,16,1], 
             layer_types=['normal','deconv','deconv','deconv'],
             act_funcs=['relu','relu','relu','tanh'],
-            conv_filter_widths=[None,7,5,5],
+            conv_filter_widths=[None,5,5,5],
             shift_spacing=[None,2,2,1],
             reg_list={
                 #'l2':[0.001,None,None,None],
@@ -194,7 +199,7 @@ class GeneratorNet:
         params['output_shape'] = [None,None,[31,31],[31,31]]
         return params
 
-    def get_encoder(self,noise_size, output_shape):
+    def get_encoder(self,noise_size, output_shape,ffnet_in):
         params = NDNutils.ffnetwork_params(
             input_dims=[1, output_shape],
             layer_sizes=[out,16,16,1], 
@@ -208,5 +213,6 @@ class GeneratorNet:
             },
             verbose=False
         )
+        params['ffnet_n'] = [ffnet_in]
 
         return params
