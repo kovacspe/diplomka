@@ -14,104 +14,6 @@ from sklearn.metrics.pairwise import pairwise_distances
 from generator_net import GeneratorNet
 import fire
 
-def generate_gan_net(input_noise_size, output_shape,l2_norm):
-    out = output_shape[:]
-    out[0] = 4
-    out = [32,8,8]
-    params = NDNutils.ffnetwork_params(
-        input_dims=[1, input_noise_size],
-        layer_sizes=[out,16,16,1], 
-        layer_types=['normal','deconv','deconv','deconv'],
-        act_funcs=['relu','relu','relu','tanh'],
-        conv_filter_widths=[None,5,5,5],
-        shift_spacing=[None,2,2,1],
-        reg_list={
-            #'l2':[0.001,None,None,None],
-            'd2x': [None,None,0.1,0.1]
-        },
-        verbose=False)
-        
-    params['xstim_n'] = [0]
-    params['normalize_output'] =  [None,None,None,l2_norm]
-
-    params['output_shape'] = [None,None,[31,31],[31,31]]
-    return params
-
-
-def copy_net_params(original_NDN_net, target_NDN_net, net_num_original, net_num_target):
-    for layer_source, layer_target in zip(original_NDN_net.networks[net_num_original].layers, target_NDN_net.networks[net_num_target].layers):
-        layer_target.copy_layer_params(layer_source)
-
-def extract_gan(gan_net,gan_subnet_id):
-    if gan_net.network_list[gan_subnet_id]['xstim_n'] is None:
-            raise AttributeError(f'Network {gan_subnet_id} is not connected to input')
-    gan_only = NDN([gan_net.network_list[gan_subnet_id]],
-    noise_dist='max',input_dim_list=[gan_net.network_list[gan_subnet_id]['input_dims']])
-
-    # Copy weights
-    copy_net_params(gan_net,gan_only,gan_subnet_id,0)
-
-    return gan_only
-
-def create_gan(original_net, input_noise_size, loss,l2_norm):
-    networks = original_net.network_list[:]
-    # Find one and only one input ffnetwork
-    input_net = []
-    for inet, net_param in enumerate(networks):
-        if net_param['xstim_n'] is not None:
-            input_net.append((inet, net_param['xstim_n']))
-
-    gan_net_shift = len(networks)
-    gan_nets=[]
-    # Add first layer into ff_net params
-    for inp_size in original_net.input_sizes:
-        gan_nets.append(generate_gan_net(input_noise_size, inp_size,l2_norm))
-    num_gan_nets = len(gan_nets)
-
-    networks = gan_nets+networks
-
-    # Rewire nets
-    for i,net in enumerate(networks):
-        if i>=num_gan_nets:
-            if networks[i]['xstim_n'] is not None:
-                stims = [inp for inp in networks[i]['xstim_n']] 
-            else:
-                stims = []
-            if networks[i]['ffnet_n'] is not None:
-                ffnets = [inp+num_gan_nets for inp in networks[i]['ffnet_n']]
-            else:
-                ffnets = []
-            networks[i]['ffnet_n'] = stims+ffnets
-            print(f'FFNETS for {i}: ',networks[i]['ffnet_n'])
-            if len(networks[i]['ffnet_n'])==0:
-                networks[i]['ffnet_n'] = None
-            networks[i]['xstim_n'] = None
-
-    
-    # Define new NDN
-    new_net = NDN(networks,
-                      input_dim_list=[[1, input_noise_size]],
-                      batch_size=original_net.batch_size if original_net.batch_size is not None else 265,
-                      noise_dist=loss,
-                      tf_seed=250)
-
-    # Copy weight from original net
-    for i in range(num_gan_nets,len(networks)):
-        copy_net_params(original_net, new_net, i-num_gan_nets, i)
-
-    # Construct fit vars
-    layers_to_skip = []
-    for i, net in enumerate(new_net.networks):
-        if i >= num_gan_nets:
-            layers_to_skip.append([x for x in range(len(net.layers))])
-        else:
-            layers_to_skip.append([])
-
-    gan_fit_vars = new_net.fit_variables(
-        layers_to_skip=layers_to_skip, fit_biases=False)
-    #gan_fit_vars[0][0]['biases']=True
-    return new_net, gan_fit_vars
-
 
 def STA_LR(training_inputs, training_set, laplace_bias):
     """
@@ -158,42 +60,6 @@ def find_var_layer(net):
     if var_layer_net is None:
         raise AssertionError('Network has no Variable layer')
     return var_layer_net, var_layer_layer
-
-
-def find_MEI_GAN(net,optimize_neuron,noise_len,data_len,l2_norm,max_activation=None,perc=0.9):
-    # Transform network to GAN
-    noise = 'oneside-gaussian' if max_activation is not None else 'max'
-    new_net, fit_vars = create_gan(net,noise_len,noise,l2_norm)
-
-    # Get network input and output shapes
-    input_shape = (data_len, noise_len)
-    output_shape = (data_len, np.prod(new_net.output_sizes))
-
-    # Setup data filter to filter only desired neuron
-    tmp_filters = np.zeros((data_len, np.prod(new_net.output_sizes)))
-    tmp_filters[:, optimize_neuron] = 1
-
-    # Create input
-    noise_input = np.random.normal(size=input_shape,scale=1)
-    input_norm = np.sqrt(np.sum(noise_input**2,axis=1))/np.sqrt(noise_len)
-
-
-    output = np.zeros(output_shape)
-    if max_activation is not None:
-        output[:,optimize_neuron] = output[:,optimize_neuron]+(perc*np.ones(output_shape[0]) *max_activation)
-
-    # Optimize
-    new_net.train(noise_input, output, fit_variables=fit_vars,
-              data_filters=tmp_filters, learning_alg='adam',
-              train_indxs=np.arange(data_len*0.9),
-              test_indxs=np.arange(data_len*0.9,data_len),
-              opt_params={'display': 1,'batch_size': 256, 'use_gpu': False, 'epochs_training': 1 , 'learning_rate': 0.001}
-              )
-
-    mean_pred = new_net.generate_prediction(noise_input[:10,:])
-    # Extract GAN 
-    extracted_gan = extract_gan(new_net,0)
-    return extracted_gan
 
 def find_MEI(net, optimize_neuron):
     # Find Variable layer
@@ -395,7 +261,7 @@ def plot_rfs(image_out,activations,save_path,scale_by_first=True,plot_diff=False
     else:
         plt.show()
 
-def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_len=1000000):
+def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_len=1000000,epochs=5):
     net = NDN.load_model(model)
     net = find_MEI(net,neuron)
     mei_stimuli = get_filter(net,reshape=False)
@@ -404,13 +270,14 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_l
 
     net = NDN.load_model(model)
 
-    generator_net = GeneratorNet(net,input_noise_size=noise_len)
+    generator_net = GeneratorNet(net,input_noise_size=noise_len,is_aegan=True)
     generator_net.train_generator_on_neuron(
         neuron,
         data_len=train_set_len,
         l2_norm=l2_norm,
         max_activation=max_activation,
-        perc=perc)
+        perc=perc,
+        epochs=epochs)
     image_out = generator_net.generate_stimulus(num_samples=500)
 
     # Cluster images

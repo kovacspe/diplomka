@@ -9,10 +9,11 @@ class GeneratorNet:
         # Save parameters
         self.original_net = original_net
         self.noise_size = input_noise_size
+        self.is_aegan = is_aegan
 
         # Copy network list
         networks = original_net.network_list[:]
-
+        
         # Find ffnetworks, which are connected to input
         input_net = []
         for inet, net_param in enumerate(networks):
@@ -23,10 +24,14 @@ class GeneratorNet:
 
         #
         gan_net_shift = len(networks)
-        gan_nets=[]
+        gan_nets = []
+        encoders = []
+        
         # Add first layer into ff_net params
-        for inp_size in original_net.input_sizes:
+        for generator_id,inp_size in enumerate(original_net.input_sizes):
             gan_nets.append(self.get_gan_subnet(input_noise_size, inp_size))
+            if is_aegan:
+                encoders.append(self.get_encoder(input_noise_size,inp_size,generator_id))
         num_generator_nets = len(gan_nets)
         self.generator_subnet_ids = list(range(num_generator_nets))
 
@@ -44,20 +49,20 @@ class GeneratorNet:
                 else:
                     ffnets = []
                 networks[i]['ffnet_n'] = stims+ffnets
-                print(f'Input ffnets for net-{i}: ',networks[i]['ffnet_n'])
                 if len(networks[i]['ffnet_n'])==0:
                     networks[i]['ffnet_n'] = None
                 networks[i]['xstim_n'] = None
 
-        ffnet_out=len(networks)-1
-        if is_aegan:
-            ffnet_out=[ffnet_out]
-            encoders = []
-            for generator_id in self.generator_subnet_ids:
-                encoders.append(self.get_encoder())
-                ffnet_out.append()
+        # Add encoders
         
 
+        # Infer output networks
+        ffnet_out=len(networks)-1
+        self.encoder_subnet_ids = list(range(len(networks),len(networks)+len(encoders)))
+        networks = networks + encoders
+        if is_aegan:
+            ffnet_out = [ffnet_out] + self.encoder_subnet_ids
+            loss = [loss] + ['gaussian']*len(encoders)
         # Define new NDN
         self.net_with_generator = NDN(networks,
                         input_dim_list=[[1, input_noise_size]],
@@ -67,7 +72,7 @@ class GeneratorNet:
                         tf_seed=250)
 
         # Copy weight from original net
-        for i in range(num_generator_nets,len(networks)):
+        for i in range(num_generator_nets,len(networks)-len(encoders)):
             GeneratorNet._copy_net_params(original_net, self.net_with_generator, i-num_generator_nets, i)
 
         # Construct fit vars
@@ -81,7 +86,7 @@ class GeneratorNet:
         self.generator_fit_vars = self.net_with_generator.fit_variables(
             layers_to_skip=layers_to_skip, fit_biases=False)
 
-    def train_generator_on_neuron(self,optimize_neuron,data_len,l2_norm,max_activation=None,perc=0.9,noise_input=None,output=None):
+    def train_generator_on_neuron(self,optimize_neuron,data_len,l2_norm,max_activation=None,perc=0.9,epochs=5,noise_input=None,output=None):
         if output is not None and noise_input is None:
             raise ValueError('Output specified, but no input provided')
 
@@ -90,22 +95,30 @@ class GeneratorNet:
             input_shape = (data_len, self.noise_size)
             # Create input
             noise_input = np.random.normal(size=input_shape,scale=1)
+            # TODO: Is normalizing necesary?
             input_norm = np.sqrt(np.sum(noise_input**2,axis=1))/np.sqrt(self.noise_size)
         else:
-            input_norm = noise_input
+            noise_input = noise_input
 
         # Create output if not specified
         if output is None:
-            output_shape = (data_len, np.prod(self.net_with_generator.output_sizes))
+            output_shape = (data_len, self.net_with_generator.output_sizes[0])
             #Create_output
             output = np.zeros(output_shape)
             if max_activation is not None:
                 output[:,optimize_neuron] = output[:,optimize_neuron]+(perc*np.ones(output_shape[0]) *max_activation)
 
         # Setup data filter to filter only desired neuron
-        tmp_filters = np.zeros((data_len, np.prod(self.net_with_generator.output_sizes)))
+        tmp_filters = np.zeros((data_len, self.net_with_generator.output_sizes[0]))
         tmp_filters[:, optimize_neuron] = 1
 
+        output = [output]
+        tmp_filters = [tmp_filters]
+        for encoder_id in self.encoder_subnet_ids:
+            output.append(noise_input)
+            tmp_filters.append(
+                np.ones((data_len, self.noise_size))
+            )
         # Set L2-norm on output
         if not isinstance(l2_norm,list):
             l2_norm = [l2_norm]
@@ -126,7 +139,7 @@ class GeneratorNet:
                 'display': 1,
                 'batch_size': 256, 
                 'use_gpu': False, 
-                'epochs_training': 5 , 
+                'epochs_training': epochs , 
                 'learning_rate': 0.001
             }
         )
@@ -176,8 +189,7 @@ class GeneratorNet:
 
 
     def get_gan_subnet(self,input_noise_size, output_shape):
-        out = output_shape[:]
-        out[0] = 4
+        output_shape = output_shape[1:]
         out = [32,8,8]
         params = NDNutils.ffnetwork_params(
             input_dims=[1, input_noise_size],
@@ -196,23 +208,24 @@ class GeneratorNet:
         params['xstim_n'] = [0]
         params['normalize_output'] =  [None,None,None,1]
 
-        params['output_shape'] = [None,None,[31,31],[31,31]]
+        params['output_shape'] = [None,None,output_shape,output_shape]
         return params
 
-    def get_encoder(self,noise_size, output_shape,ffnet_in):
+    def get_encoder(self,noise_size, input_shape,ffnet_in):
         params = NDNutils.ffnetwork_params(
-            input_dims=[1, output_shape],
-            layer_sizes=[out,16,16,1], 
-            layer_types=['normal','deconv','deconv','deconv'],
-            act_funcs=['relu','relu','relu','tanh'],
-            conv_filter_widths=[None,7,5,5],
-            shift_spacing=[None,2,2,1],
+            input_dims= input_shape,
+            layer_sizes=[16,16,32,noise_size], 
+            layer_types=['conv','conv','conv', 'normal'],
+            act_funcs=['relu','relu','relu','lin'],
+            conv_filter_widths=[5,5,7,None],
+            shift_spacing=[1,2,2],
             reg_list={
                 #'l2':[0.001,None,None,None],
-                'd2x': [None,None,0.1,0.1]
+                'd2x': [0.1,0.1,None,None]
             },
             verbose=False
         )
+        params['xstim_n'] = None
         params['ffnet_n'] = [ffnet_in]
 
         return params
