@@ -147,6 +147,22 @@ def best_models():
         run
     )
     run += 1
+    # Dog
+    run=0
+    exp = "dog"
+    run_job.run_qsub_cpu(
+        exp,
+        f'--model_type=\'dog\' --data_type=\'antolik1\' ',
+        run
+    )
+    run += 1
+    # Convolutional DoG
+    exp = "conv-dog"
+    run_job.run_qsub_cpu(
+        exp,
+        f'--model_type=\'convdog\' --data_type=\'antolik1\' --c_size={15} --layer=\'sep\' --reg_h=0.01 --hidden=9',
+        run
+    )
 
     
 
@@ -156,5 +172,5 @@ if __name__ == "__main__":
     # conv_sep_grid_search()
     # basic_grid_search()
     #iclr_antolik_grid_search()
-    #best_models()
-    dog_models()
+    best_models()
+    #dog_models()
