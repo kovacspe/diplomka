@@ -206,7 +206,7 @@ class GeneratorNet:
         )
             
         params['xstim_n'] = [0]
-        params['normalize_output'] =  [None,None,None,1]
+        params['normalize_output'] =  [None,None,None,None]
 
         params['output_shape'] = [None,None,output_shape,output_shape]
         return params
@@ -218,7 +218,7 @@ class GeneratorNet:
             layer_types=['conv','conv','conv', 'normal'],
             act_funcs=['relu','relu','relu','lin'],
             conv_filter_widths=[5,5,7,None],
-            shift_spacing=[1,2,2],
+            shift_spacing=[1,2,2,None],
             reg_list={
                 #'l2':[0.001,None,None,None],
                 'd2x': [0.1,0.1,None,None]

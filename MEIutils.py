@@ -261,7 +261,7 @@ def plot_rfs(image_out,activations,save_path,scale_by_first=True,plot_diff=False
     else:
         plt.show()
 
-def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_len=1000000,epochs=5):
+def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_len=1000000,epochs=5,is_aegan=True):
     net = NDN.load_model(model)
     net = find_MEI(net,neuron)
     mei_stimuli = get_filter(net,reshape=False)
@@ -270,7 +270,7 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_l
 
     net = NDN.load_model(model)
 
-    generator_net = GeneratorNet(net,input_noise_size=noise_len,is_aegan=True)
+    generator_net = GeneratorNet(net,input_noise_size=noise_len,is_aegan=is_aegan)
     generator_net.train_generator_on_neuron(
         neuron,
         data_len=train_set_len,
