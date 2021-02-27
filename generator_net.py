@@ -60,6 +60,8 @@ class GeneratorNet:
         ffnet_out=len(networks)-1
         self.encoder_subnet_ids = list(range(len(networks),len(networks)+len(encoders)))
         networks = networks + encoders
+        # print(networks)
+        # quit()
         if is_aegan:
             ffnet_out = [ffnet_out] + self.encoder_subnet_ids
             loss = [loss] + ['gaussian']*len(encoders)
