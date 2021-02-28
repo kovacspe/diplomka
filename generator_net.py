@@ -80,11 +80,11 @@ class GeneratorNet:
         # Construct fit vars
         layers_to_skip = []
         for i, net in enumerate(self.net_with_generator.networks):
-            if i >= num_generator_nets:
-                layers_to_skip.append([x for x in range(len(net.layers))])
-            else:
+            if i in self.generator_subnet_ids or i in self.encoder_subnet_ids:
                 layers_to_skip.append([])
-
+            else:
+                layers_to_skip.append([x for x in range(len(net.layers))])
+        
         self.generator_fit_vars = self.net_with_generator.fit_variables(
             layers_to_skip=layers_to_skip, fit_biases=False)
 
