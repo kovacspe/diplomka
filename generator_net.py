@@ -36,7 +36,8 @@ class GeneratorNet:
         self.generator_subnet_ids = list(range(num_generator_nets))
 
         networks = gan_nets+networks
-
+        self.input_nets = [len(gan_nets) + i for i,_ in input_net]
+        print(self.input_nets)
         # Rewire nets
         for i,net in enumerate(networks):
             if i>=num_generator_nets:
@@ -88,7 +89,7 @@ class GeneratorNet:
         self.generator_fit_vars = self.net_with_generator.fit_variables(
             layers_to_skip=layers_to_skip, fit_biases=False)
 
-    def train_generator_on_neuron(self,optimize_neuron,data_len,l2_norm,max_activation=None,perc=0.9,epochs=5,noise_input=None,output=None):
+    def train_generator_on_neuron(self,optimize_neuron,data_len,l2_norm=None,max_activation=None,perc=0.9,epochs=5,noise_input=None,output=None):
         if output is not None and noise_input is None:
             raise ValueError('Output specified, but no input provided')
 
@@ -122,11 +123,16 @@ class GeneratorNet:
                 np.ones((data_len, self.noise_size))
             )
         # Set L2-norm on output
-        if not isinstance(l2_norm,list):
-            l2_norm = [l2_norm]
-        for subnet_id, subnet_l2_norm in zip(self.generator_subnet_ids,l2_norm):
-            self.net_with_generator.networks[subnet_id].layers[-1].normalize_output = subnet_l2_norm
-
+        if l2_norm is not None:
+            if not isinstance(l2_norm,list):
+                l2_norm = [l2_norm]
+            if not self.is_aegan:
+                for subnet_id, subnet_l2_norm in zip(self.generator_subnet_ids,l2_norm):
+                    self.net_with_generator.networks[subnet_id].layers[-1].normalize_output = subnet_l2_norm
+            else:
+                for inp_net, subnet_l2_norm in zip(self.input_nets,l2_norm):
+                    self.net_with_generator.networks[inp_net].layers[0].normalize_output = subnet_l2_norm
+        self.current_l2_norm = l2_norm
 
         # Generator training
         self.net_with_generator.train(
@@ -159,6 +165,8 @@ class GeneratorNet:
             noise_dist='max',
             input_dim_list=[self.net_with_generator.network_list[generator_subnet_id]['input_dims']]
         )
+        if self.current_l2_norm is not None:
+            generator_subnet.networks[-1].layers[-1].normalize_output = self.current_l2_norm
 
         # Copy weights
         GeneratorNet._copy_net_params(
