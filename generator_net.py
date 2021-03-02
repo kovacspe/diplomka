@@ -37,7 +37,7 @@ class GeneratorNet:
 
         networks = gan_nets+networks
         self.input_nets = [len(gan_nets) + i for i,_ in input_net]
-        print(self.input_nets)
+
         # Rewire nets
         for i,net in enumerate(networks):
             if i>=num_generator_nets:
@@ -165,6 +165,7 @@ class GeneratorNet:
             noise_dist='max',
             input_dim_list=[self.net_with_generator.network_list[generator_subnet_id]['input_dims']]
         )
+        print('l2 norm: '+str(self.current_l2_norm))
         if self.current_l2_norm is not None:
             generator_subnet.networks[-1].layers[-1].normalize_output = self.current_l2_norm
 
@@ -175,6 +176,9 @@ class GeneratorNet:
             generator_subnet_id,
             0
         )
+        print('l2 norm: '+str(self.current_l2_norm))
+        if self.current_l2_norm is not None:
+            generator_subnet.networks[-1].layers[-1].normalize_output = self.current_l2_norm
 
         return generator_subnet
     

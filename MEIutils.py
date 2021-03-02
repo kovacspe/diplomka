@@ -257,6 +257,7 @@ def plot_rfs(image_out,activations,save_path,scale_by_first=True,plot_diff=False
         title = 'MEI - ' if i==0 else ''
         ax1[i % 5, i//5].set_title(f'{title}{100*(activations[i]/activations[0]):.2f}',fontsize=20)
     if save_path:
+        print(f'Saving to {save_path}')
         plt.savefig(save_path)
     else:
         plt.show()
@@ -298,7 +299,7 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_l
     # Plot receptive fields 
     if save_path is not None:
         save_path = os.path.join(save_path,f'{name}-neuron-{neuron}_p-{perc}_noiselen-{noise_len}_model-{model_slug}.png')
-    plot_rfs(image_out,activations,save_path,scale_by_first=True)
+    plot_rfs(image_out,activations,save_path,scale_by_first=False)
 
 
 
