@@ -279,7 +279,7 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_l
         max_activation=max_activation,
         perc=perc,
         epochs=epochs)
-    image_out = generator_net.generate_stimulus(num_samples=500)
+    image_out = generator_net.generate_stimulus(num_samples=10000)
 
     # Cluster images
     kmeans = AgglomerativeClustering(n_clusters=24,affinity='cosine',linkage='complete').fit(image_out)
