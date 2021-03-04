@@ -1,7 +1,7 @@
 import os
 import sys
 NEURONS = [28,74,66,23,83,53,54,72,50,24]
-PERC= [0.8,0.7,0.6]
+PERC= [0.95,0.85,0.75]
 name = sys.argv[1] if len(sys.argv)>1 else 'untitled'
 models = [
     #'models/dog-basicFC-exp_namedog.pkl',
@@ -10,7 +10,7 @@ models = [
 for neuron in NEURONS:
     for perc in PERC:
         for model in models:
-            for noise_len in [256]:
+            for noise_len in [512,1024]:
                 os.system(
                     f'qsub -q cpu.q -cwd -pe smp 4 -l mem_free=8G,act_mem_free=8G,h_data=20G  \
                     -o job_output/gan/o-{neuron}.log \

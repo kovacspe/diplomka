@@ -204,10 +204,10 @@ class GeneratorNet:
 
     def get_gan_subnet(self,input_noise_size, output_shape):
         output_shape = output_shape[1:]
-        out = [32,8,8]
+        out = [16,8,8]
         params = NDNutils.ffnetwork_params(
             input_dims=[1, input_noise_size],
-            layer_sizes=[out,16,16,1], 
+            layer_sizes=[out,8,8,1], 
             layer_types=['normal','deconv','deconv','deconv'],
             act_funcs=['relu','relu','relu','tanh'],
             conv_filter_widths=[None,5,5,5],
@@ -228,7 +228,7 @@ class GeneratorNet:
     def get_encoder(self,noise_size, input_shape,ffnet_in):
         params = NDNutils.ffnetwork_params(
             input_dims= input_shape,
-            layer_sizes=[16,16,32,noise_size], 
+            layer_sizes=[8,8,16,noise_size], 
             layer_types=['conv','conv','conv', 'normal'],
             act_funcs=['relu','relu','relu','lin'],
             conv_filter_widths=[5,5,7,None],
