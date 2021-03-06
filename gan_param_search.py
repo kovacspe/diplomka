@@ -10,9 +10,9 @@ models = [
 for neuron in NEURONS:
     for perc in PERC:
         for model in models:
-            for noise_len in [512,1024]:
+            for noise_len in [256,512]:
                 os.system(
                     f'qsub -q cpu.q -cwd -pe smp 4 -l mem_free=8G,act_mem_free=8G,h_data=20G  \
                     -o job_output/gan/o-{neuron}.log \
                     -e job_output/gan/e-{neuron}.log \
-                    ./scripts/run_gan_cpu.sh --neuron={neuron} --save_path="output/gan_output" --noise_len={noise_len} --perc={perc} --name="{name}" --model="{model}" --epochs=15')
+                    ./scripts/run_gan_cpu.sh --neuron={neuron} --save_path="output/gan_output" --noise_len={noise_len} --perc={perc} --name="{name}" --model="{model}" --epochs=10')
