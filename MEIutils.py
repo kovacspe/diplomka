@@ -297,7 +297,7 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_l
     activations = activations[:,neuron]
     model_slug = model.split('/')[1][:10]
     # Plot receptive fields 
-    np.save(os.path.join(save_path,'rfs',f'rf{neuron}.npy'),image_out[1,:])
+    np.save(os.path.join(save_path,'rfs',f'rf{neuron}-{noise_len}-{perc}.npy'),image_out[1,:])
     if save_path is not None:
         save_path = os.path.join(save_path,f'{name}-neuron-{neuron}_p-{perc}_noiselen-{noise_len}_model-{model_slug}.png')
     plot_rfs(image_out,activations,save_path,scale_by_first=True)
