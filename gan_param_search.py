@@ -1,7 +1,7 @@
 import os
 import sys
 NEURONS = [28,74,66,23,83,53,54,72,50,24]
-PERC= [0.6,0.5,0.4]
+PERC= [0.95,0.85,0.75]
 name = sys.argv[1] if len(sys.argv)>1 else 'untitled'
 models = [
     #'models/dog-basicFC-exp_namedog.pkl',
