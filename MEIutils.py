@@ -73,8 +73,8 @@ def find_MEI(net, optimize_neuron):
     net.noise_dist = 'max'
 
     # Get network input and output shapes
-    input_shape = (1, np.prod(net.input_sizes))
-    output_shape = (1, np.prod(net.output_sizes))
+    input_shape = (2, np.prod(net.input_sizes))
+    output_shape = (2, np.prod(net.output_sizes))
 
     # Create dummy input and output
     net.batch_size = 1
@@ -105,8 +105,22 @@ def find_MEI(net, optimize_neuron):
         layers_to_skip=layers_to_skip, fit_biases=False)
 
     # Optimize input (Variable layer)
-    net.train(dummy_input, dummy_output, fit_variables=fit_vars,
-              data_filters=tmp_filters, learning_alg='lbfgs')
+    net.train(
+        dummy_input, 
+        dummy_output, 
+        fit_variables=fit_vars,
+        data_filters=tmp_filters, 
+        learning_alg='adam',
+        train_indxs=np.arange(1),
+        test_indxs=np.arange(1),
+        opt_params={
+                'display': 1,
+                'batch_size': 1, 
+                'use_gpu': False, 
+                'epochs_training': 400 , 
+                'learning_rate': 0.001
+            }
+        )
 
     # Restore original settings
     net.network_list[var_layer_net]['as_var'] = False
@@ -264,6 +278,7 @@ def plot_rfs(image_out,activations,save_path,scale_by_first=True,plot_diff=False
 
 def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_len=1000000,epochs=5,is_aegan=True):
     net = NDN.load_model(model)
+    _, input_size_x, input_size_y = net.input_sizes[0]
     net = find_MEI(net,neuron)
     mei_stimuli = get_filter(net,reshape=False)
     l2_norm = np.sum(mei_stimuli**2)
@@ -297,7 +312,10 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_l
     activations = activations[:,neuron]
     model_slug = model.split('/')[1][:10]
     # Plot receptive fields 
-    np.save(os.path.join(save_path,'rfs',f'rf{neuron}-{noise_len}-{perc}.npy'),image_out[1,:])
+    np.save(
+        os.path.join(save_path,'rfs',f'rf{neuron}-{noise_len}-{perc}.npy'),
+        np.reshape(image_out,(-1,input_size_x,input_size_y))
+        )
     if save_path is not None:
         save_path = os.path.join(save_path,f'{name}-neuron-{neuron}_p-{perc}_noiselen-{noise_len}_model-{model_slug}.png')
     plot_rfs(image_out,activations,save_path,scale_by_first=True)
