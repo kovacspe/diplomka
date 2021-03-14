@@ -73,8 +73,8 @@ def find_MEI(net, optimize_neuron):
     net.noise_dist = 'max'
 
     # Get network input and output shapes
-    input_shape = (2, np.prod(net.input_sizes))
-    output_shape = (2, np.prod(net.output_sizes))
+    input_shape = (1, np.prod(net.input_sizes))
+    output_shape = (1, np.prod(net.output_sizes))
 
     # Create dummy input and output
     net.batch_size = 1
