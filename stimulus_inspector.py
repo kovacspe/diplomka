@@ -3,6 +3,7 @@ import os
 import fire
 import numpy as np
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 from NDN3.NDN import NDN
 
 from MEIutils import plot_rfs
@@ -34,34 +35,49 @@ def inspect_stimulus(net_path, neuron, stimulus_path, save_path=None, image_inde
 
 def _compute_mask(net: NDN, neuron: int, images: np.array, try_pixels=range(0, 255, 1)):
     num_images, x_size, y_size = np.shape(images)
-    activations = net.generate_prediction(images)
+    def NDNreshape(images):
+        return np.reshape(images,(-1,x_size*y_size))
+    activations = net.generate_prediction(NDNreshape(images))
     activations = activations[:, neuron]
     mask = np.zeros((x_size, y_size))
-    for x in range(x_size):
+    net.batch_size = 512
+    inputs = []
+    for x in tqdm(range(x_size)):
         for y in range(y_size):
-            differences = np.zeros(len(try_pixels)*num_images)
             for i, pixel in enumerate(try_pixels):
-                modified_images = images[:]
-                modified_images[:, x, y] = np.repeat(pixel, num_images)
-                predicted_activations = net.generate_prediction(modified_images)[
-                    :, neuron]
-                differences[i*len(try_pixels):(i+1)*len(try_pixels)
-                            ] = predicted_activations - activations
-            mask[x, y] = np.std(differences)
+                modified_images = np.copy(images)
+                modified_images[:, x, y]+= np.repeat(pixel, num_images)
+                inputs.append(modified_images)
+    modified_images = np.vstack(inputs)
+    print('Prediction')
+    predicted_activations = net.generate_prediction(
+                    NDNreshape(modified_images)
+                    )[:, neuron]
+    print('End of prediction')
+    differences = predicted_activations - np.tile(activations,len(try_pixels)*x_size*y_size)
+    differences = np.reshape(differences,(31,31,-1))
+    mask = np.std(differences,axis=2)
+    print(mask)
     return mask
 
 
-def compute_mask(net_path, neuron, image_path, min_pixel_val=0, max_pixel_val=0):
+def compute_mask(net_path, neuron, image_path, min_pixel_val=-6, max_pixel_val=1.6):
     net = NDN.load_model(net_path)
     images = np.load(image_path)
+    num_images, x_size, y_size = np.shape(images)
+    for i in range(10):
+        images[10+i] = np.zeros((1,x_size,y_size))+(i-3)
+    
+    print(np.min(images))
+    print(np.max(images))
     mask = _compute_mask(
         net,
         neuron,
         images,
-        range(
-            min_pixel_val,
-            max_pixel_val,
-            (max_pixel_val-min_pixel_val)/100
+        np.linspace(
+            -3,
+            3,
+            30
         )
     )
     plt.imshow(mask)

@@ -123,7 +123,7 @@ def best_models():
     #run += 1
 
     # Convolutional
-    exp = "conv2"
+    exp = "best_conv2"
     run_job.run_qsub_cpu(
         exp,
         f'--model_type=\'conv\' --data_type=\'antolik1\' --c_size={7} --channels={30} --cd2x={0.1} --hidden_t=max --hidden_s={1} --hidden_lt=normal',
@@ -131,7 +131,7 @@ def best_models():
     )
     run += 1
 
-    exp = "conv3"
+    exp = "best_conv3"
     run_job.run_qsub_cpu(
         exp,
         f'--model_type=\'conv\' --data_type=\'antolik1\' --c_size={3} --channels={9} --cd2x={0.1} --hidden_t=max --hidden_s={1} --hidden_lt=normal',
@@ -140,7 +140,7 @@ def best_models():
     run += 1
 
     # Convolutional
-    exp = "sep2"
+    exp = "best_sep2"
     run_job.run_qsub_cpu(
         exp,
         f'--model_type=\'conv\' --data_type=\'antolik1\' --c_size={15} --channels={30} --cd2x={0.1} --hidden_t=l1 --hidden_s={0.2} --hidden_lt=sep',
@@ -149,7 +149,7 @@ def best_models():
     run += 1
     # Dog
     run=0
-    exp = "dog"
+    exp = "best_dog"
     run_job.run_qsub_cpu(
         exp,
         f'--model_type=\'dog\' --data_type=\'antolik1\' ',
@@ -157,7 +157,7 @@ def best_models():
     )
     run += 1
     # Convolutional DoG
-    exp = "conv-dog"
+    exp = "best_conv-dog"
     run_job.run_qsub_cpu(
         exp,
         f'--model_type=\'convdog\' --data_type=\'antolik1\' --c_size={15} --layer=\'sep\' --reg_h=0.01 --hidden=9',
