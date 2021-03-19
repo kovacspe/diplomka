@@ -4,7 +4,7 @@ NEURONS = [28,74,66,23,83,53,54,72,50,24]
 PERC= [0.95,0.85,0.75]
 name = sys.argv[1] if len(sys.argv)>1 else 'untitled'
 models = [
-    'models/dog-basicFC-exp_namedog.pkl',
+    'models/best_dog.pkl',
     #'models/conv-dog-convDoG-c_size15-layersep-reg_h0.01-hidden9-exp_nameconv-dog.pkl'
 ]
 for neuron in NEURONS:
