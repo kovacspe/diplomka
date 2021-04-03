@@ -148,7 +148,7 @@ def train_MEI(net:NDN,input_data, output_data,data_filters,opt_args,fit_vars,var
 
     
 
-def find_MEI(net, optimize_neuron,epochs=None):
+def find_MEI(net, optimize_neuron,epochs=400):
     # Find Variable layer
     var_layer_net, var_layer_layer = find_var_layer(net)
 
