@@ -2,6 +2,7 @@ from data_loaders import DataLoader, get_data_loader, Dataset
 from utils import reshape_input_to_NDN,merge_train_and_val_set, evaluate_performance
 from model import ICLRModel, FCModel, ConvDoGModel, DoGModel, SimpleConvModel
 import fire
+from datetime import now
 
 class Trainer:
     def __init__(self,data_loader,model,kwargs):
@@ -10,22 +11,25 @@ class Trainer:
         self.args = kwargs
 
 
-    def print_evaluation(self,net):
+    def print_evaluation(self,net,name):
         train_x, train_y = self.data.train(NDN_reshape=True)
         pred = net.generate_prediction(train_x)
-        corr = evaluate_performance(pred, train_y)
-        print('Train correlation :', corr)
+        train_corr = evaluate_performance(pred, train_y)
+        print('Train correlation :', train_corr)
 
         val_x, val_y = self.data.val(NDN_reshape=True)
         pred = net.generate_prediction(val_x)
-        corr = evaluate_performance(pred, val_y)
-        print('Train correlation :', corr)
+        val_corr = evaluate_performance(pred, val_y)
+        print('Train correlation :', val_corr)
 
         test_x, test_y = self.data.train(NDN_reshape=True)
         if test_x is not None:
             pred = net.generate_prediction(test_x)
-            corr = evaluate_performance(pred, test_y)
-            print('Test correlation :', corr)
+            test_corr = evaluate_performance(pred, test_y)
+            print('Test correlation :', test_corr)
+
+        with open('models/corr_logs.log','a') as report_file:
+            report_file.write(f'{now()} - {name}: {train_corr:.3f}|{val_corr:.3f}|{test_corr:.3f}')
 
 
     def run_experiment(self,experiment_name,seed,save_name=None):
@@ -51,7 +55,7 @@ class Trainer:
             opt_params=opt_params,
             output_dir=f'output/{name}-seed{seed}'
         )
-        self.print_evaluation(self.net)
+        self.print_evaluation(self.net,name)
         if save_name:
             self.net.save_model(f'models/{name}.pkl')
 

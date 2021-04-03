@@ -106,7 +106,7 @@ class FCModel(Model):
             input_dims=[1, self.width, self.height], 
             layer_sizes=[int(self.args['hidden']*self.out_num),int(self.args['hidden']*self.out_num), self.out_num], # paper: 9, 0.2*output_shape
             ei_layers=[None, None, None],
-            normalization=[0,0, 0], 
+            normalization=[0, 0, 0], 
             layer_types=['var','normal','normal'],
             act_funcs=['lin','softplus','softplus'],
             reg_list={
@@ -131,13 +131,13 @@ class DoGModel(Model):
     def get_params(self):
         hsm_params = NDNutils.ffnetwork_params(
             input_dims=[1, self.width, self.height], 
-            layer_sizes=[9,9,int(0.2*self.out_num), self.out_num], # paper: 9, 0.2*output_shape
+            layer_sizes=[self.args['filt_size'],self.args['filt_size'],int(self.args['perc_output']*self.out_num), self.out_num], # paper: 9, 0.2*output_shape
             ei_layers=[None,None, None, None],
             normalization=[0,0,0, 0], 
             layer_types=['var','diff_of_gaussians','normal','normal'],
             act_funcs=['lin','lin','softplus','softplus'],
             reg_list={
-                'l2':[None,None,None, 0.1],
+                'l2':[0.1,None,None, 0.1],
                 })
         hsm_params['weights_initializers']=['normal','random','normal','normal']
         hsm_params['biases_initializers']=['trunc_normal','trunc_normal','trunc_normal','trunc_normal']
@@ -163,7 +163,7 @@ class ConvDoGModel(Model):
             shift_spacing=[1,(self.args['c_size']+1)//2, 1,1],
             conv_filter_widths=[self.args['c_size'],self.args['c_size'], 0, 0],
             reg_list={
-                'l2':[None,None,None, 0.1],
+                'l2':[0.1,None,None, 0.1],
                 'l1':[None,None,self.args['reg_h'], None],
                 })
         hsm_params['weights_initializers']=['normal','random','normal','normal']

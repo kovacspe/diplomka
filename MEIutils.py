@@ -44,6 +44,44 @@ def laplaceBias(sizex, sizey):
     S = numpy.mat(S)
     return S*S.T
 
+def fourier_filter(sizex,sizey,alpha):
+    fy = np.fft.fftfreq(sizey)[:, None]
+    fx = np.fft.fftfreq(sizex)[:]
+    # when we have an odd input dimension we need to keep one additional
+    # frequency and later cut off 1 pixel
+    freqs = np.sqrt(fx * fx + fy * fy)
+    scale = 1.0 / np.maximum(freqs, 1.0 / max(sizex, sizey)) ** -alpha
+    scale *= np.sqrt(sizex * sizey)
+    return scale
+
+def define_mei_train_step(net,var_layer,sizex,sizey,alpha):
+    learning_rate = tf.placeholder(tf.float32)
+    d_weights = tf.reduce_mean(
+        tf.gradients(-net.cost,[var_layer.weights_var]),
+        axis=0)
+    d_in_fourier_domain = tf.signal.fft2d(
+        tf.cast(
+            tf.reshape(d_weights,(sizex,sizey)),
+            dtype=tf.complex64
+        )
+    )
+
+    d_in_fourier_domain_filtered = tf.multiply(
+        d_in_fourier_domain,
+        fourier_filter(sizex,sizey,alpha)
+        )
+    d_weights_filtered = tf.cast(
+        tf.reshape(
+            tf.ifft2d(d_in_fourier_domain_filtered),
+            (1,-1)
+        ),
+        dtype=tf.float32
+    )
+    
+    train_step = var_layer.weights_var.assign(
+        var_layer.weights_var + learning_rate*d_weights_filtered
+    ) 
+    return train_step,learning_rate
 
 def find_var_layer(net):
     var_layer_net = None
@@ -61,12 +99,62 @@ def find_var_layer(net):
         raise AssertionError('Network has no Variable layer')
     return var_layer_net, var_layer_layer
 
-def find_MEI(net, optimize_neuron):
+
+def train_MEI(net:NDN,input_data, output_data,data_filters,opt_args,fit_vars,var_layer):
+    opt_params = net.optimizer_defaults(opt_args['opt_params'], opt_args['learning_alg'])
+    epochs = opt_args['opt_params']['epochs_training']
+    lr = opt_args['opt_params']['learning_rate']
+    _,sizex,sizey = net.input_sizes[0]
+    input_data, output_data, data_filters = net._data_format(input_data, output_data, data_filters)
+    net._build_graph(
+        opt_args['learning_alg'],
+        opt_params,
+        fit_vars,
+        batch_size=1
+        )
+
+    with tf.Session(graph=net.graph, config=net.sess_config) as sess:
+        # Define train step
+        train_step,learning_rate = define_mei_train_step(net,var_layer,sizex,sizey,0.1)
+
+        #Training
+        net._restore_params(sess, input_data, output_data, data_filters)
+        i=0
+        cost = float('inf')
+        best_cost = float('inf')
+        without_increase=0
+
+        while without_increase<100 and i<epochs: 
+            sess.run(train_step,feed_dict={net.indices: [0],learning_rate: lr})
+            cost = sess.run(net.cost, feed_dict={net.indices: [0]})
+            cost_reg = sess.run(net.cost_reg, feed_dict={net.indices: [0]})
+            if i%20==0:
+                print(f'Cost: {cost:.5f}+{cost_reg:.5f}, best: {best_cost:.3f}')
+            sess.run(
+                var_layer.gaussian_blur_std_var.assign(
+                    var_layer.gaussian_blur_std_var*0.99
+                )
+            )
+            if cost<best_cost:
+                best_cost=cost+cost_reg
+                without_increase=0
+            
+            sess.run(var_layer.gaussian_blur)
+            i+=1
+            without_increase+=1
+        net._write_model_params(sess)
+    
+    print(f'Trained with {i} epochs')
+
+    
+
+def find_MEI(net, optimize_neuron,epochs=None):
     # Find Variable layer
     var_layer_net, var_layer_layer = find_var_layer(net)
 
     # Activate variable layer
     net.network_list[var_layer_net]['as_var'] = True
+    net.networks[var_layer_net].layers[var_layer_layer].set_regularization('l2', 1.0)
 
     # Change loss function
     original_noise_dist = net.noise_dist
@@ -104,23 +192,20 @@ def find_MEI(net, optimize_neuron):
     fit_vars = net.fit_variables(
         layers_to_skip=layers_to_skip, fit_biases=False)
 
-    # Optimize input (Variable layer)
-    net.train(
-        dummy_input, 
-        dummy_output, 
-        fit_variables=fit_vars,
-        data_filters=tmp_filters, 
-        learning_alg='adam',
-        train_indxs=np.arange(1),
-        test_indxs=np.arange(1),
-        opt_params={
-                'display': 1,
+    opt_args = {
+        'learning_alg': 'adam',
+        'train_indxs':np.arange(1),
+        'test_indxs':np.arange(1),
+        'opt_params': {
+                'display': 1000,
                 'batch_size': 1, 
                 'use_gpu': False, 
-                'epochs_training': 400 , 
-                'learning_rate': 0.001
+                'epochs_training': epochs, 
+                'learning_rate': 0.0001
             }
-        )
+    }
+    # Optimize input (Variable layer)
+    train_MEI(net,dummy_input,dummy_output,tmp_filters,opt_args,fit_vars,net.networks[var_layer_net].layers[var_layer_layer])
 
     # Restore original settings
     net.network_list[var_layer_net]['as_var'] = False
@@ -183,27 +268,30 @@ def STA(net, optimize_neuron, num_examples=2000):
 
 
 class NeuralResult:
-    def __init__(self, i, sta, corr_sta, mei, corr_mei, max_activation=None):
+    def __init__(self, i, sta, sta_activation, corr_sta, mei, mei_activation, max_activation=None, neuron_correlation=None):
         self.i = i
-        self.corr_mei = corr_mei
+        self.mei_activation = mei_activation
         self.corr_sta = corr_sta
+        self.sta_activation = sta_activation
         self.sta = sta
         self.mei = mei
-        self.mei_max_activation = max_activation
+        self.max_activation = max_activation
+        self.neuron_correlation = neuron_correlation
 
     def plot(self, ax1, x, y):
         ax1[x, y].imshow(self.sta, cmap=plt.cm.RdYlBu)
         ax1[x, y].title.set_text(f'{self.i} {self.corr_sta:.2f}')
         ax1[x, y+1].imshow(self.mei, cmap=plt.cm.RdYlBu)
-        ax1[x, y+1].title.set_text(f'{self.i} {self.corr_mei:.2f}')
+        ax1[x, y+1].title.set_text(f'{self.i} {self.neuron_correlation:.2f}')
 
     def __str__(self):
-        return f'Neuron {self.i:2}: STA: {self.corr_sta:2f} NN: {self.corr_mei:2f}'
+        return f'Neuron {self.i:2}: STA: {self.corr_sta:.2f} NN: {self.neuron_correlation:.2f} STA_ACT: {self.sta_activation:.2f} MEI_ACT: {self.mei_activation:.2f} MAX_ACT: {self.max_activation:.2f}'
 
 
-def compare_sta_mei(net):
+def compare_sta_mei(net_path,output_file=None,epochs=None):
 
     # Load data
+    net = NDN.load_model(net_path)
     loader = AntolikDataLoader('data', 1)
     x, y = loader.train()
     test_x, test_y = loader.val()
@@ -216,42 +304,63 @@ def compare_sta_mei(net):
     pred = net.generate_prediction(test_x)
 
     unit_corr = np.zeros(test_y.shape[1])
+    max_activation = np.zeros(test_y.shape[1])
     for i in range(test_y.shape[1]):
         unit_corr[i] = stats.pearsonr(test_y[:, i], pred[:, i])[0]
+        max_activation[i] = np.max(pred[:,i])
 
     # STA
     sta = STA_LR(x, y, 10000)
     test_x = np.matrix(test_x)
-    # Plot setup
-    n_rows = 8  # int(np.ceil(np.sqrt(np.shape(sta)[1])))
-    fig, ax1 = plt.subplots(n_rows, 2*n_rows)
+
     results = []
     sta_corrs = []
     # Process each neuron
     for i, neuron in enumerate(range(np.shape(sta)[1])):
         # Reshape STA RF and count correlation
-
+        # if i>5: 
+        #     break
         pred = np.array(test_x*sta[:, i])
         sta_corr = stats.pearsonr(pred[:, 0], test_y[:, i])[0]
         sta_corrs.append(sta_corr)
         sta_resh = np.reshape(sta[:, i], (31, 31))
         # Find MEI
-        net = find_MEI(net, i)
+        net = find_MEI(net, i,epochs)
         mei = get_filter(net)
-
+        net = NDN.load_model(net_path)
+        mei_activation = net.generate_prediction(np.reshape(mei,(1,-1)))[0,i]
+        sta_activation = net.generate_prediction(np.reshape(sta[:,i],(1,-1)))[0,i]
         # Create result
-        res = NeuralResult(i, sta_resh, sta_corr, mei, unit_corr[i])
-
+        res = NeuralResult(i, sta_resh, sta_activation, sta_corr, mei, mei_activation, max_activation[i], unit_corr[i])
+        print(f'MEI L2: {np.linalg.norm(mei)}')
+        print(f'STA L2: {np.linalg.norm(sta[:,i])}')
+        print(f'IMG L2: {np.linalg.norm(test_x[0])}')
+        print()
         results.append(res)
     print('net correlation: ', np.mean(unit_corr))
     print('sta correlation: ', np.mean(sta_corrs))
-    results.sort(key=lambda r: r.corr_mei-r.corr_sta, reverse=True)
+    if output_file is not None:
+        with open(output_file+'.log','a') as out_file:
+            for r in results:
+                out_file.write(str(r)+'\n')
+
+    results.sort(key=lambda r: r.neuron_correlation-r.corr_sta, reverse=True)
     for r in results:
         print(r)
-    for i, res in enumerate(results[:64]):
-        res.plot(ax1, i % n_rows, 2*(i//n_rows))
+    
+    # Plot setup
+    n_rows = 7  # int(np.ceil(np.sqrt(np.shape(sta)[1])))
+    fig, ax1 = plt.subplots(n_rows, 2*8,figsize=(40,25))
 
-    plt.show()
+    for i, res in enumerate(results[:56]):
+        res.plot(ax1, i % n_rows, 2*(i//n_rows))
+    plt.savefig(f'{output_file}_pict_1.png')
+    fig, ax1 = plt.subplots(n_rows, 2*n_rows,figsize=(40,25))
+
+    for i, res in enumerate(results[56:]):
+        res.plot(ax1, i % n_rows, 2*(i//n_rows))
+    plt.savefig(f'{output_file}_pict_2.png')
+
 
 def plot_rfs(image_out,activations,save_path,scale_by_first=True,plot_diff=False):
     
@@ -326,4 +435,8 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_l
 
 
 if __name__ == '__main__':
-    fire.Fire(generate_equivariance)
+    fire.Fire({
+        'generate_equivariance': generate_equivariance,
+        'analyze_mei': compare_sta_mei
+        }
+    )
