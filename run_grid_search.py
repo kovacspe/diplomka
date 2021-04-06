@@ -110,7 +110,7 @@ def best_models(run_id='000',dataset=1):
     run = 0
     #run_job.run_local(
     #   exp,
-    #    f'--model_type=\'base\' --data_type=\'antolik1\' --hidden={0.2} --reg_h={0.#1} --reg_l={0.1}',
+    #    f'--model_type=\'base\' --data_type=\'antolik1\' --hidden={0.2} --reg_h={0.1} --reg_l={0.1}',
     #    run
     #)
     #run += 1
