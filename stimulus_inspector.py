@@ -2,6 +2,7 @@ import os
 
 import fire
 import numpy as np
+import scipy as sc
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from NDN3.NDN import NDN
@@ -31,6 +32,7 @@ def inspect_stimulus(net_path, neuron, stimulus_path, save_path=None, image_inde
             save_path = os.path.join(
                 save_path, f'{name.split()[0]}-{neuron}.png')
         plot_rfs(stimulus, activations, save_path)
+
 
 
 def _compute_mask(net: NDN, neuron: int, images: np.array, try_pixels=range(0, 255, 1)):
@@ -68,8 +70,6 @@ def compute_mask(net_path, neuron, image_path, min_pixel_val=-6, max_pixel_val=1
     for i in range(10):
         images[10+i] = np.zeros((1,x_size,y_size))+(i-3)
     
-    print(np.min(images))
-    print(np.max(images))
     mask = _compute_mask(
         net,
         neuron,
@@ -80,6 +80,10 @@ def compute_mask(net_path, neuron, image_path, min_pixel_val=-6, max_pixel_val=1
             30
         )
     )
+    # Gaussian blur
+    plt.imshow(mask)
+    plt.show()
+    mask = sc.ndimage.gaussian_filter(mask,1.0)
     plt.imshow(mask)
     plt.show()
     return mask

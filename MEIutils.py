@@ -197,6 +197,7 @@ def find_MEI(net, optimize_neuron,epochs=400):
         'train_indxs':np.arange(1),
         'test_indxs':np.arange(1),
         'opt_params': {
+
                 'display': 1000,
                 'batch_size': 1, 
                 'use_gpu': False, 
@@ -318,14 +319,14 @@ def compare_sta_mei(net_path,output_file=None,epochs=None):
     # Process each neuron
     for i, neuron in enumerate(range(np.shape(sta)[1])):
         # Reshape STA RF and count correlation
-        # if i>5: 
-        #     break
+        if i>10: 
+            break
         pred = np.array(test_x*sta[:, i])
         sta_corr = stats.pearsonr(pred[:, 0], test_y[:, i])[0]
         sta_corrs.append(sta_corr)
         sta_resh = np.reshape(sta[:, i], (31, 31))
         # Find MEI
-        net = find_MEI(net, i,epochs)
+        net = find_MEI(net, 0,i*50)
         mei = get_filter(net)
         net = NDN.load_model(net_path)
         mei_activation = net.generate_prediction(np.reshape(mei,(1,-1)))[0,i]
@@ -359,7 +360,9 @@ def compare_sta_mei(net_path,output_file=None,epochs=None):
 
     for i, res in enumerate(results[56:]):
         res.plot(ax1, i % n_rows, 2*(i//n_rows))
+    #fig.delaxes(ax1[-1][-3:])
     plt.savefig(f'{output_file}_pict_2.png')
+
 
 
 def plot_rfs(image_out,activations,save_path,scale_by_first=True,plot_diff=False):
