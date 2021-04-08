@@ -70,3 +70,4 @@ def merge_train_and_val_set(train_x,train_y,val_x,val_y):
     train_idxs = np.arange(train_len)
     val_idxs = np.arange(train_len,train_len+val_len)
     return data_x,data_y,train_idxs,val_idxs
+

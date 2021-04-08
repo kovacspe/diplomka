@@ -54,13 +54,18 @@ def explore_antolik_data(region=1,data_path='data'):
     x,y = dataset.width ,dataset.height
     print(f'Image shape: {x}x{y} pixels')
     print(f'Number of neurons: {dataset.num_neurons}')
+    print('Image statistics')
+    print(f'Min: {np.min(sample_images)}')
+    print(f'Max: {np.max(sample_images)}')
+    print(f'Mean: {np.mean(sample_images)}')
+    print(f'Std: {np.std(sample_images)}')
     sample_images = np.reshape(sample_images,(-1,x,y))
     fig, ax1 = plt.subplots(3, 4,figsize=(40,25))
     for i, res in enumerate(sample_images[:12]):
         ax1[i % 3, (i//3)].imshow(res, cmap='gray')
         ax1[i % 3, (i//3)].get_xaxis().set_visible(False)
         ax1[i % 3, (i//3)].get_yaxis().set_visible(False)
-    plt.savefig(f'output/data_exploration/region{region}.png')
+    plt.savefig(f'output/01_data_exploration/region{region}.png')
 
 if __name__=="__main__":
     fire.Fire()

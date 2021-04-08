@@ -13,6 +13,33 @@ import os
 from sklearn.metrics.pairwise import pairwise_distances
 from generator_net import GeneratorNet
 import fire
+from tqdm import tqdm
+
+def compute_mask(net: NDN, neuron: int, images: np.array, try_pixels=range(0, 2, 1)):
+    num_images, num_pixels = np.shape(images)
+    activations = net.generate_prediction(images)
+    mask = np.zeros(num_pixels)
+    net.batch_size = 512
+    inputs = []
+    for pixel_position in tqdm(range(num_pixels)):
+        for i, pixel in enumerate(try_pixels):
+            modified_images = np.copy(images)
+            modified_images[:, pixel_position]+= np.repeat(pixel, num_images)
+            inputs.append(modified_images)
+    modified_images = np.vstack(inputs)
+    print('Prediction')
+    predicted_activations = net.generate_prediction(
+                    modified_images
+                    )
+    print('End of prediction')
+    differences = predicted_activations - np.tile(activations,(len(try_pixels)*num_pixels,1))
+    
+    differences = np.reshape(differences,(31,31,103,-1))
+    print(np.shape(differences))
+    mask = np.std(differences,axis=3).transpose((2,0,1))
+    print(np.shape(mask))
+    return mask
+
 
 
 def STA_LR(training_inputs, training_set, laplace_bias):
@@ -262,8 +289,6 @@ def STA(net, optimize_neuron, num_examples=2000):
     predictions = net.generate_prediction(noise_input)[:, optimize_neuron]
     # Weight
     average_response = STA_LR(noise_input, predictions, 0.5)
-    print(np.shape(average_response))
-    # np.average(noise_input,weights=predictions,axis=0)
     _, x, y = net.input_sizes[0]
     return np.reshape(average_response, (x, y))
 
@@ -290,7 +315,6 @@ class NeuralResult:
 
 
 def compare_sta_mei(net_path,output_file=None,epochs=None):
-
     # Load data
     net = NDN.load_model(net_path)
     loader = AntolikDataLoader('data', 1)
@@ -388,7 +412,7 @@ def plot_rfs(image_out,activations,save_path,scale_by_first=True,plot_diff=False
     else:
         plt.show()
 
-def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_len=1000000,epochs=5,is_aegan=True):
+def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_len=10000,epochs=5,is_aegan=True):
     net = NDN.load_model(model)
     _, input_size_x, input_size_y = net.input_sizes[0]
     net = find_MEI(net,neuron)
@@ -406,7 +430,7 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_l
         max_activation=max_activation,
         perc=perc,
         epochs=epochs)
-    image_out = generator_net.generate_stimulus(num_samples=10000)
+    image_out = generator_net.generate_stimulus(num_samples=1000)
 
     # Cluster images
     kmeans = AgglomerativeClustering(n_clusters=24,affinity='cosine',linkage='complete').fit(image_out)
@@ -422,7 +446,7 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_l
     image_out[0,:] = mei_stimuli
     activations[0,neuron]= max_activation
     activations = activations[:,neuron]
-    model_slug = model.split('/')[1][:10]
+    model_slug = model.split('/')[1].split('.')[0]
     # Plot receptive fields 
     np.save(
         os.path.join(save_path,'rfs',f'rf{neuron}-{noise_len}-{perc}.npy'),
@@ -430,16 +454,45 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_l
         )
     if save_path is not None:
         save_path = os.path.join(save_path,f'{name}-neuron-{neuron}_p-{perc}_noiselen-{noise_len}_model-{model_slug}.png')
-    plot_rfs(image_out,activations,save_path,scale_by_first=True)
+    plot_rfs(image_out,activations,save_path,scale_by_first=False)
 
-    # Save MEI 
+
+def generate_sta(model,experiment='000'):
+    loader = None
+    x, y = loader.train()
+    x = np.matrix(x)
+    y = np.matrix(y)
+    sta = STA_LR(x, y, 10000)
+    np.save(f'output/03_sta/{experiment}-STA.npy', sta)
+    return sta
+
+def generate_mei(model,experiment='000'):
+    pass
+
+def generate_masks(model,experiment='000'):
+    loader = AntolikDataLoader('data',1)
+    x, y = loader.train()
+    x = x[:50]
+    net = NDN.load_model(model)
+    neurons = range(5)
+    masks=[]
     
+    mask = compute_mask(net,0,x,np.linspace(-1.6,1.6,20))
+    fig, ax1 = plt.subplots(10, 10,figsize=(40,25))
+
+    for i, res in enumerate(mask[:100]):
+        ax1[i % 10, i//10].imshow(res)
+    plt.savefig(f'{experiment}_masks_plot.png')
+
 
 
 
 if __name__ == '__main__':
     fire.Fire({
         'generate_equivariance': generate_equivariance,
-        'analyze_mei': compare_sta_mei
+        'analyze_mei': compare_sta_mei,
+        'sta': generate_sta,
+        'mei': generate_mei,
+        'mask': generate_masks,
         }
     )
