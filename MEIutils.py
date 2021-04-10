@@ -3,10 +3,10 @@ import tensorflow as tf
 from NDN3.layer import VariableLayer
 import matplotlib.pyplot as plt
 import numpy.linalg
-from utils import evaluate_performance
+from utils.misc_utils import evaluate_performance
 from scipy import stats
 from NDN3.NDN import NDN
-from data_loaders import AntolikDataLoader
+from utils.data_loaders import AntolikDataLoader
 from NDN3 import NDNutils
 from sklearn.cluster import KMeans,AgglomerativeClustering
 import os
@@ -14,12 +14,14 @@ from sklearn.metrics.pairwise import pairwise_distances
 from generator_net import GeneratorNet
 import fire
 from tqdm import tqdm
+import math
 
 def compute_mask(net: NDN, neuron: int, images: np.array, try_pixels=range(0, 2, 1)):
     num_images, num_pixels = np.shape(images)
     activations = net.generate_prediction(images)
     mask = np.zeros(num_pixels)
     net.batch_size = 512
+
     inputs = []
     for pixel_position in tqdm(range(num_pixels)):
         for i, pixel in enumerate(try_pixels):
@@ -27,20 +29,14 @@ def compute_mask(net: NDN, neuron: int, images: np.array, try_pixels=range(0, 2,
             modified_images[:, pixel_position]+= np.repeat(pixel, num_images)
             inputs.append(modified_images)
     modified_images = np.vstack(inputs)
-    print('Prediction')
     predicted_activations = net.generate_prediction(
                     modified_images
                     )
-    print('End of prediction')
+
     differences = predicted_activations - np.tile(activations,(len(try_pixels)*num_pixels,1))
-    
-    differences = np.reshape(differences,(31,31,103,-1))
-    print(np.shape(differences))
-    mask = np.std(differences,axis=3).transpose((2,0,1))
-    print(np.shape(mask))
+    differences = np.reshape(differences,(31,31,-1,103))
+    mask = np.std(differences,axis=2).transpose((2,0,1))
     return mask
-
-
 
 def STA_LR(training_inputs, training_set, laplace_bias):
     """
@@ -51,7 +47,6 @@ def STA_LR(training_inputs, training_set, laplace_bias):
     laplace = laplaceBias(int(numpy.sqrt(kernel_size)),
                           int(numpy.sqrt(kernel_size)))
     return numpy.linalg.pinv(training_inputs.T*training_inputs + laplace_bias*laplace) * training_inputs.T * training_set
-
 
 def laplaceBias(sizex, sizey):
     S = numpy.zeros((sizex*sizey, sizex*sizey))
@@ -83,8 +78,9 @@ def fourier_filter(sizex,sizey,alpha):
 
 def define_mei_train_step(net,var_layer,sizex,sizey,alpha):
     learning_rate = tf.placeholder(tf.float32)
+    cost = -net.cost_penalized
     d_weights = tf.reduce_mean(
-        tf.gradients(-net.cost,[var_layer.weights_var]),
+        tf.gradients(cost,[var_layer.weights_var]),
         axis=0)
     d_in_fourier_domain = tf.signal.fft2d(
         tf.cast(
@@ -125,7 +121,6 @@ def find_var_layer(net):
     if var_layer_net is None:
         raise AssertionError('Network has no Variable layer')
     return var_layer_net, var_layer_layer
-
 
 def train_MEI(net:NDN,input_data, output_data,data_filters,opt_args,fit_vars,var_layer):
     opt_params = net.optimizer_defaults(opt_args['opt_params'], opt_args['learning_alg'])
@@ -172,8 +167,6 @@ def train_MEI(net:NDN,input_data, output_data,data_filters,opt_args,fit_vars,var
         net._write_model_params(sess)
     
     print(f'Trained with {i} epochs')
-
-    
 
 def find_MEI(net, optimize_neuron,epochs=400):
     # Find Variable layer
@@ -240,17 +233,6 @@ def find_MEI(net, optimize_neuron,epochs=400):
     net.noise_dist = original_noise_dist
     return net
 
-
-def plot_filter(net, ax=None, n=None):
-    w = get_filter(net)
-    if ax is None:
-        plt.imshow(w, cmap=plt.cm.RdYlBu)
-        plt.show()
-
-    else:
-        return plt.imshow(w, cmap=plt.cm.RdYlBu)
-
-
 def get_filter(net,reshape=True):
     var_layer_net, var_layer_layer = find_var_layer(net)
     _, x, y = net.input_sizes[0]
@@ -261,36 +243,6 @@ def get_filter(net,reshape=True):
         return raw_filter
 
 
-def plot_all(net, MEI_STA=False):
-    outputs = np.prod(net.output_sizes)
-    n_rows = int(np.ceil(np.sqrt(outputs)))
-    fig, ax1 = plt.subplots(n_rows, n_rows)
-    for i, neuron in enumerate(range(10)):
-        print(f'{i}/{outputs}')
-        if MEI_STA:
-            w = STA(net, neuron)
-        else:
-            net = find_MEI(net, neuron)
-            w = get_filter(net)
-        ax1[i % n_rows, i//n_rows].imshow(w, cmap=plt.cm.RdYlBu)
-    plt.show()
-
-
-def STA(net, optimize_neuron, num_examples=2000):
-    # Get network input and output shapes
-    input_shape = (num_examples, np.prod(net.input_sizes))
-    output_shape = (1, np.prod(net.output_sizes))
-
-    # Create dummy input and output
-    noise_input = np.random.laplace(
-        size=input_shape, scale=1).astype('float32')
-
-    # Predict responses
-    predictions = net.generate_prediction(noise_input)[:, optimize_neuron]
-    # Weight
-    average_response = STA_LR(noise_input, predictions, 0.5)
-    _, x, y = net.input_sizes[0]
-    return np.reshape(average_response, (x, y))
 
 
 class NeuralResult:
@@ -320,7 +272,6 @@ def compare_sta_mei(net_path,output_file=None,epochs=None):
     loader = AntolikDataLoader('data', 1)
     x, y = loader.train()
     test_x, test_y = loader.val()
-    print(test_x)
     x = np.matrix(x)
     y = np.matrix(y)
 
@@ -384,7 +335,7 @@ def compare_sta_mei(net_path,output_file=None,epochs=None):
 
     for i, res in enumerate(results[56:]):
         res.plot(ax1, i % n_rows, 2*(i//n_rows))
-    #fig.delaxes(ax1[-1][-3:])
+
     plt.savefig(f'{output_file}_pict_2.png')
 
 
@@ -456,35 +407,97 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_l
         save_path = os.path.join(save_path,f'{name}-neuron-{neuron}_p-{perc}_noiselen-{noise_len}_model-{model_slug}.png')
     plot_rfs(image_out,activations,save_path,scale_by_first=False)
 
+def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.cm.RdYlBu):
+    num_images = len(images)
+    if titles is None:
+        titles=['']*num_images
+    else:
+        assert num_images==len(titles)
+    num_rows = math.ceil(num_images/num_cols)
+    fig, ax1 = plt.subplots(num_rows, num_cols,figsize=(3*num_cols,2.5*num_rows))
 
-def generate_sta(model,experiment='000'):
-    loader = None
+    for i, (img,tit) in enumerate(zip(images,titles)):
+        ax1[i // num_cols, i%num_cols].imshow(img,cmap=cmap)
+        ax1[i // num_cols, i%num_cols].set_xticklabels([],[])
+        ax1[i // num_cols, i%num_cols].set_yticklabels([],[])
+        if len(tit)>0:
+            ax1[i // num_cols, i%num_cols].set_title(tit,fontsize=20)
+    for i in range(num_images,num_cols*num_rows):
+        fig.delaxes(ax1[i // num_cols, i%num_cols])
+
+    plt.tight_layout()
+    if save_path is not None:
+        fig.savefig(save_path)
+    if show:
+        fig.show()
+
+
+
+def generate_sta(experiment='000'):
+    # TODO: Replace by decorator
+    loader = AntolikDataLoader('data',1)
+
     x, y = loader.train()
     x = np.matrix(x)
     y = np.matrix(y)
-    sta = STA_LR(x, y, 10000)
+    sta = STA_LR(x, y, 10000).transpose()
+    sta = np.array(sta).reshape((-1,31,31))
     np.save(f'output/03_sta/{experiment}-STA.npy', sta)
-    return sta
+    titles = [str(x) for x in range(len(sta))]
+    plot_grid(list(sta),titles,save_path=f'output/03_sta/{experiment}_masks_plot.png',show=True)
 
 def generate_mei(model,experiment='000'):
-    pass
-
-def generate_masks(model,experiment='000'):
+    # TODO: Replace by decorator
     loader = AntolikDataLoader('data',1)
-    x, y = loader.train()
-    x = x[:50]
     net = NDN.load_model(model)
-    neurons = range(5)
-    masks=[]
-    
-    mask = compute_mask(net,0,x,np.linspace(-1.6,1.6,20))
-    fig, ax1 = plt.subplots(10, 10,figsize=(40,25))
 
-    for i, res in enumerate(mask[:100]):
-        ax1[i % 10, i//10].imshow(res)
-    plt.savefig(f'{experiment}_masks_plot.png')
+    _,y = loader.train()
+    num_neurons = np.shape(y)[1]
+    meis = []
+    activations = []
+    for i, neuron in enumerate(range(num_neurons)):
+        net = find_MEI(net, 0,2)
+        mei = get_filter(net)
+        mei_activation = net.generate_prediction(np.reshape(mei,(1,-1)))[0,i]
+        meis.append(mei)
+        activations.append(mei_activation)
+    titles = [f'{i} - {act:.3f}' for i,act in enumerate(activations)]
+    np.save(f'output/04_mei/{experiment}_mei.npy',meis)
+    plot_grid(meis,titles,save_path=f'output/04_mei/{experiment}_mei.png')
 
 
+def generate_masks(model,num_images=50,experiment='000'):
+    # TODO: Replace by decorator
+    loader = AntolikDataLoader('data',1)
+    net = NDN.load_model(model)
+
+    x, y = loader.train()
+    x = x[:num_images]
+    def mask_pixel(pixel):
+        return 1 if pixel>0.0001 else 0
+    # Compute masks
+    mask = compute_mask(net,0,x,np.linspace(-1.6,1.6,10))[:16]
+    hard_mask = np.vectorize(mask_pixel)(mask)[:16]
+    print(np.shape(mask))
+    # Plot masks
+    plot_grid(mask,save_path=f'output/02_masks/{experiment}_masks_plot.png',cmap=plt.cm.hot)
+    plot_grid(hard_mask,save_path=f'output/02_masks/{experiment}_hardmasks_plot.png',cmap=plt.cm.hot)
+    # Save masks to npy
+    np.save(f'output/02_masks/{experiment}_masks.npy',mask)
+    np.save(f'output/02_masks/{experiment}_hardmasks.npy',hard_mask)
+
+def plot_equivariances(neuron,experiment='000',mask=False):
+    invariances = np.load(f'output/06_invariances/{experiment}_neuron{neuron}_equivariance.npy')
+    #TODO: Reshape when saving
+    mask_text =''
+    invariances = np.reshape(np.tile(invariances,(16,1)),(-1,31,31))
+    if mask:
+        neuron_mask = np.load(f'output/02_masks/{experiment}_hardmasks.npy')[neuron]
+        neuron_mask = np.where(neuron_mask==0,np.nan,neuron_mask)
+        neuron_mask = np.where(neuron_mask==1,0,neuron_mask)
+        invariances = invariances + np.tile(neuron_mask,(np.shape(invariances)[0],1,1))
+        mask_text = '_masked'
+    plot_grid(invariances,save_path=f'output/06_invariances/{experiment}_plot{mask_text}.png')
 
 
 if __name__ == '__main__':
@@ -494,5 +507,6 @@ if __name__ == '__main__':
         'sta': generate_sta,
         'mei': generate_mei,
         'mask': generate_masks,
+        'plot_equivariances': plot_equivariances
         }
     )

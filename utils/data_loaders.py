@@ -2,7 +2,7 @@ import numpy as np
 import pickle
 import tensorflow as tf
 from datetime import datetime
-from utils import reshape_input_to_NDN
+from .misc_utils import reshape_input_to_NDN
 import math
 from matplotlib import pyplot as plt
 

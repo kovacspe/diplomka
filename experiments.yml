@@ -1,0 +1,4 @@
+basic_000:
+  code: 000
+  model: 'models/best_dog.pkl'
+  dataset: 'antolik1'

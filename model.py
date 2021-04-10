@@ -199,4 +199,3 @@ class ICLRModel(Model):
     def get_opt_params(self):
         epochs = 2000
         return {'batch_size': 256, 'use_gpu': False, 'epochs_summary': 25, 'epochs_training': epochs, 'learning_rate': 0.002}
-
