@@ -456,7 +456,7 @@ def generate_mei(model,experiment='000'):
     meis = []
     activations = []
     for i, neuron in enumerate(range(num_neurons)):
-        net = find_MEI(net, 0,2)
+        net = find_MEI(net, 0,400)
         mei = get_filter(net)
         mei_activation = net.generate_prediction(np.reshape(mei,(1,-1)))[0,i]
         meis.append(mei)
