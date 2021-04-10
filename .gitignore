@@ -46,7 +46,8 @@ env.bak/
 venv.bak/
 
 .vscode
-output/
+output/*/*
+!output/*/.gitkeep
 AIC_output/
 antolik_data/
 external/
@@ -55,4 +56,6 @@ net_poisson.pkl
 data/
 models/
 gan_output/
+mei_sta/
+rfs/
 *.bat
