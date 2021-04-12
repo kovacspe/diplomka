@@ -12,6 +12,7 @@ from sklearn.cluster import KMeans,AgglomerativeClustering
 import os
 from sklearn.metrics.pairwise import pairwise_distances
 from generator_net import GeneratorNet
+from utils.experiment_params import experiment_args
 import fire
 from tqdm import tqdm
 import math
@@ -335,43 +336,16 @@ def compare_sta_mei(net_path,output_file=None,epochs=None):
 
     for i, res in enumerate(results[56:]):
         res.plot(ax1, i % n_rows, 2*(i//n_rows))
-
     plt.savefig(f'{output_file}_pict_2.png')
 
 
-
-def plot_rfs(image_out,activations,save_path,scale_by_first=True,plot_diff=False):
-    
-    vmin,vmax = np.min(image_out[0,:]),np.max(image_out[0,:])
-    fig, ax1 = plt.subplots(5,5,figsize=(20,20))
-
-    for i in range(25):
-        if plot_diff:
-            rf = np.reshape(image_out[i, :]-image_out[0,:], (31, 31))
-            ax1[i % 5, i//5].imshow(rf, cmap=plt.cm.RdYlBu)
-        else:
-            rf = np.reshape(image_out[i, :], (31, 31))
-            if scale_by_first:
-                ax1[i % 5, i//5].imshow(rf, cmap=plt.cm.RdYlBu,vmin=vmin,vmax=vmax)
-            else:
-                ax1[i % 5, i//5].imshow(rf, cmap=plt.cm.RdYlBu)
-        title = 'MEI - ' if i==0 else ''
-        ax1[i % 5, i//5].set_title(f'{title}{100*(activations[i]/activations[0]):.2f}',fontsize=20)
-    if save_path:
-        print(f'Saving to {save_path}')
-        plt.savefig(save_path)
-    else:
-        plt.show()
-
-def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_len=10000,epochs=5,is_aegan=True):
-    net = NDN.load_model(model)
+@experiment_args
+def generate_equivariance(noise_len,neuron,perc,net,num_equivariance_clusters,train_set_len=10000,epochs=5,is_aegan=True,experiment='000'):
     _, input_size_x, input_size_y = net.input_sizes[0]
-    net = find_MEI(net,neuron)
-    mei_stimuli = get_filter(net,reshape=False)
+    # Load precomputed MEI
+    mei_stimuli = np.load(f'output/04_mei/{experiment}_mei.npy')[neuron]
+    max_activation = np.load(f'output/04_mei/{experiment}_mei_activations.npy')[neuron]
     l2_norm = np.sum(mei_stimuli**2)
-    max_activation = net.generate_prediction(mei_stimuli)[0,neuron]
-
-    net = NDN.load_model(model)
 
     generator_net = GeneratorNet(net,input_noise_size=noise_len,is_aegan=is_aegan)
     generator_net.train_generator_on_neuron(
@@ -384,28 +358,23 @@ def generate_equivariance(noise_len,neuron,save_path,perc,name,model,train_set_l
     image_out = generator_net.generate_stimulus(num_samples=1000)
 
     # Cluster images
-    kmeans = AgglomerativeClustering(n_clusters=24,affinity='cosine',linkage='complete').fit(image_out)
+    kmeans = AgglomerativeClustering(n_clusters=num_equivariance_clusters,affinity='cosine',linkage='complete').fit(image_out)
     x=[]
-    for i in range(24):
+    for i in range(num_equivariance_clusters):
         x.append(image_out[kmeans.labels_==i][0,:])
-    image_out[1:25,:]=x
+    x = np.vstack(x)
 
-    # Compute activations
-    net = NDN.load_model(model)
-    
-    activations = net.generate_prediction(image_out)
-    image_out[0,:] = mei_stimuli
-    activations[0,neuron]= max_activation
-    activations = activations[:,neuron]
-    model_slug = model.split('/')[1].split('.')[0]
+    # Compute activations  
+    activations = net.generate_prediction(x)[:,neuron]
     # Plot receptive fields 
     np.save(
-        os.path.join(save_path,'rfs',f'rf{neuron}-{noise_len}-{perc}.npy'),
-        np.reshape(image_out[:25],(-1,input_size_x,input_size_y))
-        )
-    if save_path is not None:
-        save_path = os.path.join(save_path,f'{name}-neuron-{neuron}_p-{perc}_noiselen-{noise_len}_model-{model_slug}.png')
-    plot_rfs(image_out,activations,save_path,scale_by_first=False)
+        f'output/06_invariances/{experiment}_neuron{neuron}_equivariance.npy',
+        np.reshape(x,(-1,input_size_x,input_size_y))
+    )
+    np.save(
+        f'output/06_invariances/{experiment}_neuron{neuron}_activations.npy',
+        np.reshape(activations,(-1,input_size_x,input_size_y))
+    )
 
 def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.cm.RdYlBu):
     num_images = len(images)
@@ -432,53 +401,43 @@ def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.c
         fig.show()
 
 
-
-def generate_sta(experiment='000'):
-    # TODO: Replace by decorator
-    loader = AntolikDataLoader('data',1)
-
-    x, y = loader.train()
+@experiment_args
+def generate_sta(dataset,experiment='000'):
+    x, y = dataset.train()
     x = np.matrix(x)
     y = np.matrix(y)
     sta = STA_LR(x, y, 10000).transpose()
     sta = np.array(sta).reshape((-1,31,31))
-    np.save(f'output/03_sta/{experiment}-STA.npy', sta)
+    np.save(f'output/03_sta/{experiment}_sta.npy', sta)
     titles = [str(x) for x in range(len(sta))]
-    plot_grid(list(sta),titles,save_path=f'output/03_sta/{experiment}_masks_plot.png',show=True)
+    plot_grid(list(sta),titles,save_path=f'output/03_sta/{experiment}_sta.png',show=True)
 
-def generate_mei(model,experiment='000'):
-    # TODO: Replace by decorator
-    loader = AntolikDataLoader('data',1)
-    net = NDN.load_model(model)
-
-    _,y = loader.train()
+@experiment_args
+def generate_mei(net,dataset,experiment='000'):
+    _,y = dataset.train()
     num_neurons = np.shape(y)[1]
     meis = []
     activations = []
     for i, neuron in enumerate(range(num_neurons)):
-        net = find_MEI(net, 0,400)
+        net = find_MEI(net, i, 400)
         mei = get_filter(net)
         mei_activation = net.generate_prediction(np.reshape(mei,(1,-1)))[0,i]
         meis.append(mei)
         activations.append(mei_activation)
     titles = [f'{i} - {act:.3f}' for i,act in enumerate(activations)]
     np.save(f'output/04_mei/{experiment}_mei.npy',meis)
-    plot_grid(meis,titles,save_path=f'output/04_mei/{experiment}_mei.png')
+    np.save(f'output/04_mei/{experiment}_mei_activations.npy',activations)
+    plot_grid(meis,titles,num_cols=2,save_path=f'output/04_mei/{experiment}_mei.png')
 
-
-def generate_masks(model,num_images=50,experiment='000'):
-    # TODO: Replace by decorator
-    loader = AntolikDataLoader('data',1)
-    net = NDN.load_model(model)
-
-    x, y = loader.train()
+@experiment_args
+def generate_masks(net,dataset,mask_threshold,num_images=50,experiment='000'):
+    x, y = dataset.train()
     x = x[:num_images]
     def mask_pixel(pixel):
-        return 1 if pixel>0.0001 else 0
+        return 1 if pixel>mask_threshold else 0
     # Compute masks
     mask = compute_mask(net,0,x,np.linspace(-1.6,1.6,10))[:16]
     hard_mask = np.vectorize(mask_pixel)(mask)[:16]
-    print(np.shape(mask))
     # Plot masks
     plot_grid(mask,save_path=f'output/02_masks/{experiment}_masks_plot.png',cmap=plt.cm.hot)
     plot_grid(hard_mask,save_path=f'output/02_masks/{experiment}_hardmasks_plot.png',cmap=plt.cm.hot)
@@ -486,10 +445,11 @@ def generate_masks(model,num_images=50,experiment='000'):
     np.save(f'output/02_masks/{experiment}_masks.npy',mask)
     np.save(f'output/02_masks/{experiment}_hardmasks.npy',hard_mask)
 
-def plot_equivariances(neuron,experiment='000',mask=False):
+@experiment_args
+def plot_equivariances(neuron,experiment='000',mask=False,include_mei=False):
     invariances = np.load(f'output/06_invariances/{experiment}_neuron{neuron}_equivariance.npy')
     #TODO: Reshape when saving
-    mask_text =''
+    mask_text = ''
     invariances = np.reshape(np.tile(invariances,(16,1)),(-1,31,31))
     if mask:
         neuron_mask = np.load(f'output/02_masks/{experiment}_hardmasks.npy')[neuron]
@@ -497,6 +457,8 @@ def plot_equivariances(neuron,experiment='000',mask=False):
         neuron_mask = np.where(neuron_mask==1,0,neuron_mask)
         invariances = invariances + np.tile(neuron_mask,(np.shape(invariances)[0],1,1))
         mask_text = '_masked'
+    if include_mei:
+        pass
     plot_grid(invariances,save_path=f'output/06_invariances/{experiment}_plot{mask_text}.png')
 
 

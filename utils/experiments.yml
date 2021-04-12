@@ -1,0 +1,14 @@
+000dog:
+  code: 000
+  net: 'models/best_dog.pkl'
+  dataset: 'antolik1'
+  mask_threshold: 0.0001
+  noise_len: 128
+  num_equivariance_clusters: 24
+
+001convdog:
+  code: 001
+  net: 'models/best_convdog.pkl'
+  dataset: 'antolik1'
+  mask_threshold: 0.005
+
