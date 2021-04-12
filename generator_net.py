@@ -190,7 +190,7 @@ class GeneratorNet:
     ):
         # Generate noise_input if not specified
         if noise_input is None:
-            noise_input = np.random.uniform(-1,1,size=(num_samples,self.noise_size))
+            noise_input = np.random.uniform(-2,2,size=(num_samples,self.noise_size))
         generator = self.extract_generator(generator_subnet_id)
         image_out = generator.generate_prediction(noise_input)
         return image_out

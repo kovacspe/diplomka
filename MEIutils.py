@@ -243,104 +243,16 @@ def get_filter(net,reshape=True):
     else:
         return raw_filter
 
-
-
-
-class NeuralResult:
-    def __init__(self, i, sta, sta_activation, corr_sta, mei, mei_activation, max_activation=None, neuron_correlation=None):
-        self.i = i
-        self.mei_activation = mei_activation
-        self.corr_sta = corr_sta
-        self.sta_activation = sta_activation
-        self.sta = sta
-        self.mei = mei
-        self.max_activation = max_activation
-        self.neuron_correlation = neuron_correlation
-
-    def plot(self, ax1, x, y):
-        ax1[x, y].imshow(self.sta, cmap=plt.cm.RdYlBu)
-        ax1[x, y].title.set_text(f'{self.i} {self.corr_sta:.2f}')
-        ax1[x, y+1].imshow(self.mei, cmap=plt.cm.RdYlBu)
-        ax1[x, y+1].title.set_text(f'{self.i} {self.neuron_correlation:.2f}')
-
-    def __str__(self):
-        return f'Neuron {self.i:2}: STA: {self.corr_sta:.2f} NN: {self.neuron_correlation:.2f} STA_ACT: {self.sta_activation:.2f} MEI_ACT: {self.mei_activation:.2f} MAX_ACT: {self.max_activation:.2f}'
-
-
-def compare_sta_mei(net_path,output_file=None,epochs=None):
-    # Load data
-    net = NDN.load_model(net_path)
-    loader = AntolikDataLoader('data', 1)
-    x, y = loader.train()
-    test_x, test_y = loader.val()
-    x = np.matrix(x)
-    y = np.matrix(y)
-
-    # Get unit correlations
-    net.batch_size = 50
-    pred = net.generate_prediction(test_x)
-
-    unit_corr = np.zeros(test_y.shape[1])
-    max_activation = np.zeros(test_y.shape[1])
-    for i in range(test_y.shape[1]):
-        unit_corr[i] = stats.pearsonr(test_y[:, i], pred[:, i])[0]
-        max_activation[i] = np.max(pred[:,i])
-
-    # STA
-    sta = STA_LR(x, y, 10000)
-    test_x = np.matrix(test_x)
-
-    results = []
-    sta_corrs = []
-    # Process each neuron
-    for i, neuron in enumerate(range(np.shape(sta)[1])):
-        # Reshape STA RF and count correlation
-        if i>10: 
-            break
-        pred = np.array(test_x*sta[:, i])
-        sta_corr = stats.pearsonr(pred[:, 0], test_y[:, i])[0]
-        sta_corrs.append(sta_corr)
-        sta_resh = np.reshape(sta[:, i], (31, 31))
-        # Find MEI
-        net = find_MEI(net, 0,i*50)
-        mei = get_filter(net)
-        net = NDN.load_model(net_path)
-        mei_activation = net.generate_prediction(np.reshape(mei,(1,-1)))[0,i]
-        sta_activation = net.generate_prediction(np.reshape(sta[:,i],(1,-1)))[0,i]
-        # Create result
-        res = NeuralResult(i, sta_resh, sta_activation, sta_corr, mei, mei_activation, max_activation[i], unit_corr[i])
-        print(f'MEI L2: {np.linalg.norm(mei)}')
-        print(f'STA L2: {np.linalg.norm(sta[:,i])}')
-        print(f'IMG L2: {np.linalg.norm(test_x[0])}')
-        print()
-        results.append(res)
-    print('net correlation: ', np.mean(unit_corr))
-    print('sta correlation: ', np.mean(sta_corrs))
-    if output_file is not None:
-        with open(output_file+'.log','a') as out_file:
-            for r in results:
-                out_file.write(str(r)+'\n')
-
-    results.sort(key=lambda r: r.neuron_correlation-r.corr_sta, reverse=True)
-    for r in results:
-        print(r)
-    
-    # Plot setup
-    n_rows = 7  # int(np.ceil(np.sqrt(np.shape(sta)[1])))
-    fig, ax1 = plt.subplots(n_rows, 2*8,figsize=(40,25))
-
-    for i, res in enumerate(results[:56]):
-        res.plot(ax1, i % n_rows, 2*(i//n_rows))
-    plt.savefig(f'{output_file}_pict_1.png')
-    fig, ax1 = plt.subplots(n_rows, 2*n_rows,figsize=(40,25))
-
-    for i, res in enumerate(results[56:]):
-        res.plot(ax1, i % n_rows, 2*(i//n_rows))
-    plt.savefig(f'{output_file}_pict_2.png')
-
+@experiment_args
+def neuron_description(experiment='000'):
+    sta_correlations = np.load(f'output/03_sta/{experiment}_sta_correlations.npy')
 
 @experiment_args
-def generate_equivariance(noise_len,neuron,perc,net,num_equivariance_clusters,train_set_len=10000,epochs=5,is_aegan=True,experiment='000'):
+def compare_sta_mei(experiment='000'):
+    pass
+
+@experiment_args
+def generate_equivariance(noise_len,neuron,perc,net,num_equivariance_clusters,eq_train_set_len=10000,eq_epochs=5,is_aegan=True,experiment='000'):
     _, input_size_x, input_size_y = net.input_sizes[0]
     # Load precomputed MEI
     mei_stimuli = np.load(f'output/04_mei/{experiment}_mei.npy')[neuron]
@@ -350,12 +262,12 @@ def generate_equivariance(noise_len,neuron,perc,net,num_equivariance_clusters,tr
     generator_net = GeneratorNet(net,input_noise_size=noise_len,is_aegan=is_aegan)
     generator_net.train_generator_on_neuron(
         neuron,
-        data_len=train_set_len,
+        data_len=eq_train_set_len,
         l2_norm=l2_norm,
         max_activation=max_activation,
         perc=perc,
-        epochs=epochs)
-    image_out = generator_net.generate_stimulus(num_samples=1000)
+        epochs=eq_epochs)
+    image_out = generator_net.generate_stimulus(num_samples=10000)
 
     # Cluster images
     kmeans = AgglomerativeClustering(n_clusters=num_equivariance_clusters,affinity='cosine',linkage='complete').fit(image_out)
@@ -402,14 +314,24 @@ def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.c
 
 
 @experiment_args
-def generate_sta(dataset,experiment='000'):
+def generate_sta(dataset,net,experiment='000'):
     x, y = dataset.train()
     x = np.matrix(x)
     y = np.matrix(y)
+    test_x, test_y = dataset.val()
+
     sta = STA_LR(x, y, 10000).transpose()
-    sta = np.array(sta).reshape((-1,31,31))
+    activations = net.generate_prediction(sta)
+    sta_activations = [activations[i,i] for i in range(len(activations))]
+    sta_predictions = np.array(test_x*sta.T)
+    sta_correlations = [stats.pearsonr(sta_predictions[:,i],test_y[:,i])[0] for i in range(np.shape(y)[1])]
+
+    _, input_size_x, input_size_y = net.input_sizes[0]
+    sta = np.array(sta).reshape((-1,input_size_x,input_size_y))
     np.save(f'output/03_sta/{experiment}_sta.npy', sta)
-    titles = [str(x) for x in range(len(sta))]
+    np.save(f'output/03_sta/{experiment}_sta_activations.npy', sta_activations)
+    np.save(f'output/03_sta/{experiment}_sta_correlations.npy', sta_correlations)
+    titles = [f'{i} - A:{act:.2f} C:{corr:.2f}' for i,(act,corr) in enumerate(zip(sta_activations,sta_correlations))]
     plot_grid(list(sta),titles,save_path=f'output/03_sta/{experiment}_sta.png',show=True)
 
 @experiment_args
@@ -427,7 +349,7 @@ def generate_mei(net,dataset,experiment='000'):
     titles = [f'{i} - {act:.3f}' for i,act in enumerate(activations)]
     np.save(f'output/04_mei/{experiment}_mei.npy',meis)
     np.save(f'output/04_mei/{experiment}_mei_activations.npy',activations)
-    plot_grid(meis,titles,num_cols=2,save_path=f'output/04_mei/{experiment}_mei.png')
+    plot_grid(meis,titles,num_cols=8,save_path=f'output/04_mei/{experiment}_mei.png')
 
 @experiment_args
 def generate_masks(net,dataset,mask_threshold,num_images=50,experiment='000'):
@@ -436,8 +358,8 @@ def generate_masks(net,dataset,mask_threshold,num_images=50,experiment='000'):
     def mask_pixel(pixel):
         return 1 if pixel>mask_threshold else 0
     # Compute masks
-    mask = compute_mask(net,0,x,np.linspace(-1.6,1.6,10))[:16]
-    hard_mask = np.vectorize(mask_pixel)(mask)[:16]
+    mask = compute_mask(net,0,x,np.linspace(-1.6,1.6,10))
+    hard_mask = np.vectorize(mask_pixel)(mask)
     # Plot masks
     plot_grid(mask,save_path=f'output/02_masks/{experiment}_masks_plot.png',cmap=plt.cm.hot)
     plot_grid(hard_mask,save_path=f'output/02_masks/{experiment}_hardmasks_plot.png',cmap=plt.cm.hot)
