@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 
 from NDN3.layer import VariableLayer
@@ -5,14 +6,13 @@ from NDN3.NDN import NDN
 from NDN3 import NDNutils
 
 class GeneratorNet:
-    def __init__(self,original_net,input_noise_size,loss='oneside-gaussian',is_aegan=False):
+    def __init__(self,original_netx,input_noise_size,loss='oneside-gaussian',is_aegan=False):
         # Save parameters
-        self.original_net = original_net
+        self.original_net = copy.deepcopy(original_netx)
         self.noise_size = input_noise_size
         self.is_aegan = is_aegan
-
         # Copy network list
-        networks = original_net.network_list[:]
+        networks = self.original_net.network_list.copy()
         
         # Find ffnetworks, which are connected to input
         input_net = []
@@ -28,7 +28,7 @@ class GeneratorNet:
         encoders = []
         
         # Add first layer into ff_net params
-        for generator_id,inp_size in enumerate(original_net.input_sizes):
+        for generator_id,inp_size in enumerate(self.original_net.input_sizes):
             gan_nets.append(self.get_gan_subnet(input_noise_size, inp_size))
             if is_aegan:
                 encoders.append(self.get_encoder(input_noise_size,inp_size,generator_id))
@@ -69,14 +69,14 @@ class GeneratorNet:
         # Define new NDN
         self.net_with_generator = NDN(networks,
                         input_dim_list=[[1, input_noise_size]],
-                        batch_size=original_net.batch_size if original_net.batch_size is not None else 265,
+                        batch_size=self.original_net.batch_size if self.original_net.batch_size is not None else 265,
                         ffnet_out=ffnet_out,
                         noise_dist=loss,
                         tf_seed=250)
 
         # Copy weight from original net
         for i in range(num_generator_nets,len(networks)-len(encoders)):
-            GeneratorNet._copy_net_params(original_net, self.net_with_generator, i-num_generator_nets, i)
+            GeneratorNet._copy_net_params(self.original_net, self.net_with_generator, i-num_generator_nets, i)
 
         # Construct fit vars
         layers_to_skip = []

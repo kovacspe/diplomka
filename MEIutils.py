@@ -246,13 +246,20 @@ def get_filter(net,reshape=True):
 @experiment_args
 def neuron_description(experiment='000'):
     sta_correlations = np.load(f'output/03_sta/{experiment}_sta_correlations.npy')
+    # TODO: neuron correlation on validation
+    # TODO: latex table
 
 @experiment_args
 def compare_sta_mei(experiment='000'):
+    # TODO: LOad MEI and STA
+
+    # TODO: Plot MEI vs STA + activations
+
+    # TODO: latex table
     pass
 
 @experiment_args
-def generate_equivariance(noise_len,neuron,perc,net,num_equivariance_clusters,eq_train_set_len=10000,eq_epochs=5,is_aegan=True,experiment='000'):
+def generate_equivariance(neuron,noise_len,perc,net,num_equivariance_clusters,eq_train_set_len=10000,eq_epochs=5,is_aegan=True,experiment='000'):
     _, input_size_x, input_size_y = net.input_sizes[0]
     # Load precomputed MEI
     mei_stimuli = np.load(f'output/04_mei/{experiment}_mei.npy')[neuron]
@@ -285,7 +292,7 @@ def generate_equivariance(noise_len,neuron,perc,net,num_equivariance_clusters,eq
     )
     np.save(
         f'output/06_invariances/{experiment}_neuron{neuron}_activations.npy',
-        np.reshape(activations,(-1,input_size_x,input_size_y))
+        activations
     )
 
 def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.cm.RdYlBu):
