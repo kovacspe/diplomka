@@ -16,9 +16,9 @@
   mask_threshold: 0.0001
   noise_len: 512
   num_equivariance_clusters: 24
-  eq_train_set_len: 50000 #000
+  eq_train_set_len: 1000000
   perc: 0.999
-  eq_epochs: 3
+  eq_epochs: 15
   chosen_neurons: 
     - 83
     - 28
@@ -39,7 +39,7 @@
   num_equivariance_clusters: 24
   eq_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 5
+  eq_epochs: 15
 
 003dog:
   code: 003
@@ -50,7 +50,7 @@
   num_equivariance_clusters: 24
   eq_train_set_len: 1000000
   perc: 0.75
-  eq_epochs: 5
+  eq_epochs: 15
 
 
 004dog:
@@ -62,7 +62,7 @@
   num_equivariance_clusters: 24
   eq_train_set_len: 1000000
   perc: 0.75
-  eq_epochs: 5
+  eq_epochs: 15
 
 100convdog:
   code: 001
@@ -73,7 +73,7 @@
   noise_len: 512
   eq_train_set_len: 100000 #00
   perc: 0.95
-  eq_epochs: 5
+  eq_epochs: 15
 
 999dog:
   code: 999
