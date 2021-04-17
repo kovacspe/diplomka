@@ -1,5 +1,6 @@
 import os
 import sys
+NN = [83,28,49,23,18,102]
 NEURONS = [28,74,66,23,83,]#53,54,72,50,24]
 name = sys.argv[1] if len(sys.argv)>1 else 'untitled'
 models = [

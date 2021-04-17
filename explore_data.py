@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-from data_loaders import AntolikDataLoader,ICLRDataLoader
+from utils.data_loaders import AntolikDataLoader,ICLRDataLoader
 import fire
 
 def explore_rotaion_dataset_data():
@@ -59,6 +59,7 @@ def explore_antolik_data(region=1,data_path='data'):
     print(f'Max: {np.max(sample_images)}')
     print(f'Mean: {np.mean(sample_images)}')
     print(f'Std: {np.std(sample_images)}')
+    print(f'Mean L2 of image: {np.mean(np.sum(sample_images**2,axis=1))}')
     sample_images = np.reshape(sample_images,(-1,x,y))
     fig, ax1 = plt.subplots(3, 4,figsize=(40,25))
     for i, res in enumerate(sample_images[:12]):

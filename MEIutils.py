@@ -1,21 +1,28 @@
-import numpy as np
-import tensorflow as tf
-from NDN3.layer import VariableLayer
-import matplotlib.pyplot as plt
-import numpy.linalg
-from utils.misc_utils import evaluate_performance
-from scipy import stats
-from NDN3.NDN import NDN
-from utils.data_loaders import AntolikDataLoader
-from NDN3 import NDNutils
-from sklearn.cluster import KMeans,AgglomerativeClustering
+import copy
 import os
-from sklearn.metrics.pairwise import pairwise_distances
-from generator_net import GeneratorNet
-from utils.experiment_params import experiment_args
-import fire
-from tqdm import tqdm
 import math
+
+import fire
+import numpy as np
+import numpy.linalg
+import matplotlib.pyplot as plt
+import pandas as pd
+from scipy import stats
+from sklearn.cluster import KMeans,AgglomerativeClustering
+from sklearn.metrics.pairwise import pairwise_distances
+import tensorflow as tf
+from tqdm import tqdm
+
+
+from NDN3.NDN import NDN
+from NDN3.layer import VariableLayer
+from NDN3 import NDNutils
+
+from generator_net import GeneratorNet
+from utils.data_loaders import AntolikDataLoader
+from utils.experiment_params import experiment_args
+from utils.misc_utils import evaluate_performance
+
 
 def compute_mask(net: NDN, neuron: int, images: np.array, try_pixels=range(0, 2, 1)):
     num_images, num_pixels = np.shape(images)
@@ -79,7 +86,7 @@ def fourier_filter(sizex,sizey,alpha):
 
 def define_mei_train_step(net,var_layer,sizex,sizey,alpha):
     learning_rate = tf.placeholder(tf.float32)
-    cost = -net.cost_penalized
+    cost = -net.cost
     d_weights = tf.reduce_mean(
         tf.gradients(cost,[var_layer.weights_var]),
         axis=0)
@@ -153,11 +160,12 @@ def train_MEI(net:NDN,input_data, output_data,data_filters,opt_args,fit_vars,var
             cost_reg = sess.run(net.cost_reg, feed_dict={net.indices: [0]})
             if i%20==0:
                 print(f'Cost: {cost:.5f}+{cost_reg:.5f}, best: {best_cost:.3f}')
-            sess.run(
-                var_layer.gaussian_blur_std_var.assign(
-                    var_layer.gaussian_blur_std_var*0.99
+            if i%10==0:
+                sess.run(
+                    var_layer.gaussian_blur_std_var.assign(
+                        var_layer.gaussian_blur_std_var*0.99
+                    )
                 )
-            )
             if cost<best_cost:
                 best_cost=cost+cost_reg
                 without_increase=0
@@ -175,7 +183,7 @@ def find_MEI(net, optimize_neuron,epochs=400):
 
     # Activate variable layer
     net.network_list[var_layer_net]['as_var'] = True
-    net.networks[var_layer_net].layers[var_layer_layer].set_regularization('l2', 1.0)
+    net.networks[var_layer_net].layers[var_layer_layer].set_regularization('l2', 0.01)
 
     # Change loss function
     original_noise_dist = net.noise_dist
@@ -244,47 +252,77 @@ def get_filter(net,reshape=True):
         return raw_filter
 
 @experiment_args
+def correlations(net,dataset,experiment='000'):
+    train_x, train_y = dataset.train()
+    test_x,test_y = dataset.val()
+    train_predictions = net.generate_prediction(train_x)
+    test_predictions = net.generate_prediction(test_x)
+    print(np.std(train_predictions,axis=1)[84])
+    print('----------')
+    print(test_predictions[:84])
+    train_correlations = [stats.pearsonr(train_predictions[:,i],train_y[:,i])[0] for i in range(np.shape(train_y)[1])]
+    test_correlations = [stats.pearsonr(test_predictions[:,i],test_y[:,i])[0] for i in range(np.shape(test_y)[1])]
+    np.save(f'output/07_correlations/{experiment}_train_correlations.npy',train_correlations)
+    np.save(f'output/07_correlations/{experiment}_test_correlations.npy',test_correlations)
+
+
+@experiment_args
 def neuron_description(experiment='000'):
-    sta_correlations = np.load(f'output/03_sta/{experiment}_sta_correlations.npy')
-    # TODO: neuron correlation on validation
-    # TODO: latex table
+    sta_corrs = np.load(f'output/03_sta/{experiment}_sta_correlations.npy')
+    #np.load(f'output/07_correlations/{experiment}_train_correlations.npy',train_correlations)
+    net_corrs = np.load(f'output/07_correlations/{experiment}_test_correlations.npy')
+    # Neuron correlation on validation
+    corrs_df = pd.DataFrame(zip(sta_corrs,net_corrs),columns=['STA correlation', 'Model correlation'])
+    corrs_df['score'] = (1-corrs_df['STA correlation'])*corrs_df['Model correlation']
+    corrs_df.sort_values('score',ascending=False,inplace=True)
+    with open(f'output/07_correlations/{experiment}_corr_table.tex','w') as f:
+        f.write(corrs_df.to_latex())
 
 @experiment_args
-def compare_sta_mei(experiment='000'):
-    # TODO: LOad MEI and STA
+def compare_sta_mei(chosen_neurons,experiment='000'):
+    stas = np.load(f'output/03_sta/{experiment}_sta.npy')[chosen_neurons]
+    sta_activations = np.load(f'output/03_sta/{experiment}_sta_activations.npy')[chosen_neurons]
+    meis = np.load(f'output/04_mei/{experiment}_mei.npy')[chosen_neurons]
+    mei_activations = np.load(f'output/04_mei/{experiment}_mei_activations.npy')[chosen_neurons]
+    titles = [f'{i} - STA - {act:.2f}' for i,act in zip(chosen_neurons,sta_activations)]
+    titles = titles + [f'{i} - MEI - {act:.2f}' for i,act in zip(chosen_neurons,mei_activations)]
+    plot_grid(np.concatenate([stas,meis]),titles,save_path=f'output/05_compare_mei_sta/{experiment}_comparison.png',show=True)
 
-    # TODO: Plot MEI vs STA + activations
-
-    # TODO: latex table
-    pass
 
 @experiment_args
-def generate_equivariance(neuron,noise_len,perc,net,num_equivariance_clusters,eq_train_set_len=10000,eq_epochs=5,is_aegan=True,experiment='000'):
+def generate_equivariance(neuron,noise_len,perc,net,num_equivariance_clusters,eq_train_set_len=10000,eq_epochs=5,is_aegan=False,mask=False,experiment='000'):
     _, input_size_x, input_size_y = net.input_sizes[0]
     # Load precomputed MEI
     mei_stimuli = np.load(f'output/04_mei/{experiment}_mei.npy')[neuron]
     max_activation = np.load(f'output/04_mei/{experiment}_mei_activations.npy')[neuron]
+    if mask:
+        mask = np.load(f'output/02_masks/{experiment}_hardmasks.npy')[neuron]
+    else:
+        mask = None
     l2_norm = np.sum(mei_stimuli**2)
-
-    generator_net = GeneratorNet(net,input_noise_size=noise_len,is_aegan=is_aegan)
+    net2 = copy.deepcopy(net)
+    generator_net = GeneratorNet(net,input_noise_size=noise_len,is_aegan=is_aegan,mask=mask) #,loss='max'
     generator_net.train_generator_on_neuron(
         neuron,
         data_len=eq_train_set_len,
-        l2_norm=l2_norm,
-        max_activation=max_activation,
+        l2_norm=961.0,#100*l2_norm,
+        max_activation=15,
         perc=perc,
         epochs=eq_epochs)
-    image_out = generator_net.generate_stimulus(num_samples=10000)
+    image_out = generator_net.generate_stimulus(num_samples=1000)
 
     # Cluster images
     kmeans = AgglomerativeClustering(n_clusters=num_equivariance_clusters,affinity='cosine',linkage='complete').fit(image_out)
     x=[]
     for i in range(num_equivariance_clusters):
         x.append(image_out[kmeans.labels_==i][0,:])
+    x[-1] = np.zeros_like(x[-1])
     x = np.vstack(x)
 
+
     # Compute activations  
-    activations = net.generate_prediction(x)[:,neuron]
+    activations = net2.generate_prediction(x)[:,neuron]
+
     # Plot receptive fields 
     np.save(
         f'output/06_invariances/{experiment}_neuron{neuron}_equivariance.npy',
@@ -309,7 +347,7 @@ def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.c
         ax1[i // num_cols, i%num_cols].set_xticklabels([],[])
         ax1[i // num_cols, i%num_cols].set_yticklabels([],[])
         if len(tit)>0:
-            ax1[i // num_cols, i%num_cols].set_title(tit,fontsize=20)
+            ax1[i // num_cols, i%num_cols].set_title(tit,fontsize=10)
     for i in range(num_images,num_cols*num_rows):
         fig.delaxes(ax1[i // num_cols, i%num_cols])
 
@@ -317,7 +355,7 @@ def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.c
     if save_path is not None:
         fig.savefig(save_path)
     if show:
-        fig.show()
+        plt.show()
 
 
 @experiment_args
@@ -347,16 +385,19 @@ def generate_mei(net,dataset,experiment='000'):
     num_neurons = np.shape(y)[1]
     meis = []
     activations = []
-    for i, neuron in enumerate(range(num_neurons)):
-        net = find_MEI(net, i, 400)
+    for neuron in range(num_neurons):
+        net = find_MEI(net,neuron, 80)
         mei = get_filter(net)
-        mei_activation = net.generate_prediction(np.reshape(mei,(1,-1)))[0,i]
+        mei_activation = net.generate_prediction(np.reshape(mei,(1,-1)))[0,neuron]
         meis.append(mei)
         activations.append(mei_activation)
+    #meis = np.load(f'output/04_mei/{experiment}_mei.npy',)
+    #activations = np.load(f'output/04_mei/{experiment}_mei_activations.npy')
     titles = [f'{i} - {act:.3f}' for i,act in enumerate(activations)]
     np.save(f'output/04_mei/{experiment}_mei.npy',meis)
     np.save(f'output/04_mei/{experiment}_mei_activations.npy',activations)
-    plot_grid(meis,titles,save_path=f'output/04_mei/{experiment}_mei.png')
+
+    plot_grid(meis,titles,num_cols=8,save_path=f'output/04_mei/{experiment}_mei.png',show=True,cmap=plt.cm.gray)
 
 @experiment_args
 def generate_masks(net,dataset,mask_threshold,num_images=50,experiment='000'):
@@ -377,9 +418,13 @@ def generate_masks(net,dataset,mask_threshold,num_images=50,experiment='000'):
 @experiment_args
 def plot_equivariances(neuron,experiment='000',mask=False,include_mei=False):
     invariances = np.load(f'output/06_invariances/{experiment}_neuron{neuron}_equivariance.npy')
+    activations = np.load(f'output/06_invariances/{experiment}_neuron{neuron}_activations.npy')
+    mei_act = np.load(f'output/04_mei/{experiment}_mei_activations.npy')[neuron]
+    print(activations)
+    print(mei_act)
     #TODO: Reshape when saving
     mask_text = ''
-    invariances = np.reshape(np.tile(invariances,(16,1)),(-1,31,31))
+    invariances = np.reshape(invariances,(-1,31,31))
     if mask:
         neuron_mask = np.load(f'output/02_masks/{experiment}_hardmasks.npy')[neuron]
         neuron_mask = np.where(neuron_mask==0,np.nan,neuron_mask)
@@ -388,7 +433,8 @@ def plot_equivariances(neuron,experiment='000',mask=False,include_mei=False):
         mask_text = '_masked'
     if include_mei:
         pass
-    plot_grid(invariances,save_path=f'output/06_invariances/{experiment}_plot{mask_text}.png')
+    titles = [f'{act/mei_act:.2f}' for act in activations]
+    plot_grid(invariances,titles,num_cols=4,save_path=f'output/06_invariances/{experiment}_plot{mask_text}.png',show=True)
 
 
 if __name__ == '__main__':
@@ -398,6 +444,9 @@ if __name__ == '__main__':
         'sta': generate_sta,
         'mei': generate_mei,
         'mask': generate_masks,
-        'plot_equivariances': plot_equivariances
+        'corr': correlations,
+        'neuron_desc': neuron_description,
+        'plot_equivariances': plot_equivariances,
+        'compare': compare_sta_mei
         }
     )
