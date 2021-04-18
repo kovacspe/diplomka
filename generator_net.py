@@ -142,7 +142,7 @@ class GeneratorNet:
             learning_alg='adam',
             train_indxs=np.arange(data_len*0.9),
             test_indxs=np.arange(data_len*0.9,data_len),
-            output_dir='output/tf/001',
+            #output_dir='output/tf/001',
             opt_params={
                 'display': 1,
                 'batch_size': 256, 
