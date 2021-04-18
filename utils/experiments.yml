@@ -7,7 +7,16 @@
   num_equivariance_clusters: 24
   eq_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 5
+  eq_epochs: 20
+  chosen_neurons: 
+    - 83
+    - 28
+    - 49
+    - 23
+    - 18
+    - 102
+    - 64
+    - 95
 
 001dog:
   code: 001

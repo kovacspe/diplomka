@@ -9,7 +9,11 @@ def experiment_args(func):
         if 'experiment' in kwargs:
             exp_id = kwargs['experiment']
             with open('utils/experiments.yml','r') as conf_file:
-                loaded_params = yaml.load(conf_file).get(exp_id,{})
+                loaded_yaml = yaml.load(conf_file)
+            loaded_params = loaded_yaml.get(exp_id,{})
+            if 'model_exp_ids' in loaded_params:
+                if isinstance(loaded_params['model_exp_ids'],list):
+                    pass
             # Filter configuration params and update by **kwargs
             varnames = func.__code__.co_varnames
             for key,value in loaded_params.items():
