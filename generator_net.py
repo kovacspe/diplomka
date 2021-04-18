@@ -146,7 +146,7 @@ class GeneratorNet:
             opt_params={
                 'display': 1,
                 'batch_size': 256, 
-                'epochs_summary':1,
+                #S'epochs_summary':1,
                 'use_gpu': False, 
                 'epochs_training': epochs , 
                 'learning_rate': 0.001
