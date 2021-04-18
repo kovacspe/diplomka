@@ -290,13 +290,25 @@ def compare_sta_mei(chosen_neurons,experiment='000'):
 
 
 @experiment_args
-def generate_equivariance(neuron,noise_len,perc,net,num_equivariance_clusters,eq_train_set_len=10000,eq_epochs=5,is_aegan=False,mask=False,experiment='000'):
+def generate_equivariance(
+        neuron:int,
+        noise_len:int,
+        perc:float,
+        net:NDN,
+        num_equivariance_clusters:int,
+        eq_train_set_len=10000,
+        eq_epochs=5,
+        is_aegan=False,
+        mask=False,
+        experiment='000',
+        model_exp_id='000'
+    ):
     _, input_size_x, input_size_y = net.input_sizes[0]
     # Load precomputed MEI
-    mei_stimuli = np.load(f'output/04_mei/{experiment}_mei.npy')[neuron]
-    max_activation = np.load(f'output/04_mei/{experiment}_mei_activations.npy')[neuron]
+    mei_stimuli = np.load(f'output/04_mei/{model_exp_id}_mei.npy')[neuron]
+    max_activation = np.load(f'output/04_mei/{model_exp_id}_mei_activations.npy')[neuron]
     if mask:
-        mask = np.load(f'output/02_masks/{experiment}_hardmasks.npy')[neuron]
+        mask = np.load(f'output/02_masks/{model_exp_id}_hardmasks.npy')[neuron]
     else:
         mask = None
     l2_norm = np.sum(mei_stimuli**2)
@@ -366,8 +378,11 @@ def generate_sta(dataset,net,experiment='000'):
     test_x, test_y = dataset.val()
 
     sta = STA_LR(x, y, 10000).transpose()
-    activations = net.generate_prediction(sta)
+    sta_normalized =  (sta - sta.mean(axis=0)) / sta.std(axis=0)
+
+    activations = net.generate_prediction(sta_normalized)
     sta_activations = [activations[i,i] for i in range(len(activations))]
+
     sta_predictions = np.array(test_x*sta.T)
     sta_correlations = [stats.pearsonr(sta_predictions[:,i],test_y[:,i])[0] for i in range(np.shape(y)[1])]
 
@@ -388,8 +403,9 @@ def generate_mei(net,dataset,experiment='000'):
     for neuron in range(num_neurons):
         net = find_MEI(net,neuron, 80)
         mei = get_filter(net)
-        mei_activation = net.generate_prediction(np.reshape(mei,(1,-1)))[0,neuron]
-        meis.append(mei)
+        mei_normalized =  (mei - mei.mean(axis=0)) / mei.std(axis=0)
+        mei_activation = net.generate_prediction(np.reshape(mei_normalized,(1,-1)))[0,neuron]
+        meis.append(mei_normalized)
         activations.append(mei_activation)
     #meis = np.load(f'output/04_mei/{experiment}_mei.npy',)
     #activations = np.load(f'output/04_mei/{experiment}_mei_activations.npy')
@@ -420,8 +436,7 @@ def plot_equivariances(neuron,experiment='000',mask=False,include_mei=False):
     invariances = np.load(f'output/06_invariances/{experiment}_neuron{neuron}_equivariance.npy')
     activations = np.load(f'output/06_invariances/{experiment}_neuron{neuron}_activations.npy')
     mei_act = np.load(f'output/04_mei/{experiment}_mei_activations.npy')[neuron]
-    print(activations)
-    print(mei_act)
+
     #TODO: Reshape when saving
     mask_text = ''
     invariances = np.reshape(invariances,(-1,31,31))
