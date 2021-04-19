@@ -282,9 +282,9 @@ def neuron_description(experiment='000'):
 def compare_sta_mei(chosen_neurons=range(103),experiment='000'):
     stas = np.load(f'output/03_sta/{experiment}_sta_normalized.npy')[chosen_neurons]
     sta_activations = np.load(f'output/03_sta/{experiment}_sta_activations.npy')[chosen_neurons]
-    meis = np.load(f'output/04_mei/{experiment}_mei_n.npy')[chosen_neurons]
+    meis = np.load(f'output/04_mei/{experiment}_mei.npy')[chosen_neurons]
 
-    mei_activations = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')[chosen_neurons]
+    mei_activations = np.load(f'output/04_mei/{experiment}_mei_activations.npy')[chosen_neurons]
     titles = [f'{i} - STA - {act:.2f}' for i,act in zip(chosen_neurons,sta_activations)]
     titles = titles + [f'{i} - MEI - {act:.2f}' for i,act in zip(chosen_neurons,mei_activations)]
     plot_grid(np.concatenate([stas,meis]),titles,save_path=f'output/05_compare_mei_sta/{experiment}_comparison.png',show=True)
@@ -461,6 +461,11 @@ def plot_equivariances(neuron,experiment='000',mask=False,include_mei=False):
         pass
     titles = [f'{act/mei_act:.2f}' for act in activations]
     plot_grid(invariances,titles,num_cols=4,save_path=f'output/06_invariances/{experiment}_plot{mask_text}.png',show=True)
+
+def basic_setup(experiment='000'):
+    generate_sta(experiment=experiment)
+    generate_mei(experiment=experiment)
+    generate_masks(experiment=experiment)
 
 
 if __name__ == '__main__':
