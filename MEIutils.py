@@ -311,7 +311,7 @@ def generate_equivariance(
         mask = np.load(f'output/02_masks/{experiment}_hardmasks.npy')[neuron]
     else:
         mask = None
-
+    train_log = f'output/tf/{experiment}-{neuron}'
     net2 = copy.deepcopy(net)
     generator_net = GeneratorNet(net,input_noise_size=noise_len,is_aegan=is_aegan,mask=mask) #,loss='max'
     generator_net.train_generator_on_neuron(
@@ -320,7 +320,8 @@ def generate_equivariance(
         l2_norm=1,
         max_activation=max_activation,
         perc=perc,
-        epochs=eq_epochs)
+        epochs=eq_epochs,
+        train_log=train_log)
     image_out = generator_net.generate_stimulus(num_samples=10000)
 
     # Cluster images

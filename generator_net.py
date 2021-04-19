@@ -89,7 +89,7 @@ class GeneratorNet:
             layers_to_skip=layers_to_skip, fit_biases=False)
 
 
-    def train_generator_on_neuron(self,optimize_neuron,data_len,l2_norm=None,max_activation=None,perc=0.9,epochs=5,noise_input=None,output=None):
+    def train_generator_on_neuron(self,optimize_neuron,data_len,l2_norm=None,max_activation=None,perc=0.9,epochs=5,noise_input=None,output=None,train_log=None):
         if output is not None and noise_input is None:
             raise ValueError('Output specified, but no input provided')
 
@@ -142,11 +142,11 @@ class GeneratorNet:
             learning_alg='adam',
             train_indxs=np.arange(data_len*0.9),
             test_indxs=np.arange(data_len*0.9,data_len),
-            #output_dir='output/tf/001',
+            output_dir=train_log,
             opt_params={
                 'display': 1,
                 'batch_size': 256, 
-                #S'epochs_summary':1,
+                'epochs_summary':1,
                 'use_gpu': False, 
                 'epochs_training': epochs , 
                 'learning_rate': 0.001
