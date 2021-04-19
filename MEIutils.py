@@ -478,6 +478,7 @@ if __name__ == '__main__':
         'corr': correlations,
         'neuron_desc': neuron_description,
         'plot_equivariances': plot_equivariances,
-        'compare': compare_sta_mei
+        'compare': compare_sta_mei,
+        'basic': basic_setup
         }
     )
