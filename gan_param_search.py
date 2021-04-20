@@ -9,7 +9,7 @@ models = [
     #'models/conv-dog-convDoG-c_size15-layersep-reg_h0.01-hidden9-exp_nameconv-dog.pkl'
 ]
 
-for exp in ['000dog', '001dog', '002dog', '003dog']:
+for exp in ['004dog', '005dog']:
     with open('utils/experiments.yml','r') as conf_file:
         loaded_yaml = yaml.load(conf_file)
     loaded_params = loaded_yaml.get(exp,{})
