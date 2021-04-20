@@ -149,7 +149,7 @@ class GeneratorNet:
                 'epochs_summary':1,
                 'use_gpu': False, 
                 'epochs_training': epochs , 
-                'learning_rate': 0.001
+                'learning_rate': 0.0001
             }
         )
         #print(self.net_with_generator.eval_preds(noise_input,output_data=output))
@@ -209,7 +209,7 @@ class GeneratorNet:
             shift_spacing=[None,2,2,1,None],
             reg_list={
                 #'l2':[0.001,None,None,None],
-                'd2x': [None,None,0.1,0.1,None]
+                'd2x': [None,None,0.01,0.01,None]
             },
             verbose=False
         )
