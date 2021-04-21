@@ -300,6 +300,7 @@ def generate_equivariance(
         eq_train_set_len=10000,
         eq_epochs=5,
         is_aegan=False,
+        loss='oneside-gaussian',
         mask=False,
         experiment='000'
     ):
@@ -313,7 +314,7 @@ def generate_equivariance(
         mask = None
     train_log = f'output/tf/{experiment}-{neuron}'
     net2 = copy.deepcopy(net)
-    generator_net = GeneratorNet(net,input_noise_size=noise_len,is_aegan=is_aegan,mask=mask) #,loss='max'
+    generator_net = GeneratorNet(net,input_noise_size=noise_len,loss=loss,is_aegan=is_aegan,mask=mask) #,loss='max'
     generator_net.train_generator_on_neuron(
         neuron,
         data_len=eq_train_set_len,
