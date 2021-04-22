@@ -161,3 +161,65 @@
     - 102
     - 64
     - 95
+
+008dog:
+  code: 001
+  net: 'models/best_dog.pkl'
+  dataset: 'antolik1'
+  mask_threshold: 0.0001
+  noise_len: 128
+  num_equivariance_clusters: 24
+  eq_train_set_len: 1000000
+  perc: 0.95
+  eq_epochs: 25
+  gen_type: 'lin'
+  chosen_neurons: 
+    - 83
+    - 28
+    - 49
+    - 23
+    - 18
+    - 102
+    - 64
+    - 95
+
+009dog:
+  code: 001
+  net: 'models/best_dog.pkl'
+  dataset: 'antolik1'
+  mask_threshold: 0.0001
+  noise_len: 128
+  num_equivariance_clusters: 24
+  eq_train_set_len: 1000000
+  perc: 0.95
+  eq_epochs: 25
+  loss: 'gaussian'
+  chosen_neurons: 
+    - 83
+    - 28
+    - 49
+    - 23
+    - 18
+    - 102
+    - 64
+    - 95
+
+010dog:
+  code: 001
+  net: 'models/best_dog.pkl'
+  dataset: 'antolik1'
+  mask_threshold: 0.0001
+  noise_len: 32
+  num_equivariance_clusters: 24
+  eq_train_set_len: 1000000
+  perc: 0.95
+  eq_epochs: 25
+  chosen_neurons: 
+    - 83
+    - 28
+    - 49
+    - 23
+    - 18
+    - 102
+    - 64
+    - 95

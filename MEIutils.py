@@ -302,6 +302,7 @@ def generate_equivariance(
         is_aegan=False,
         loss='oneside-gaussian',
         mask=False,
+        gen_type='conv',
         experiment='000'
     ):
     _, input_size_x, input_size_y = net.input_sizes[0]
@@ -314,7 +315,7 @@ def generate_equivariance(
         mask = None
     train_log = f'output/tf/{experiment}-{neuron}'
     net2 = copy.deepcopy(net)
-    generator_net = GeneratorNet(net,input_noise_size=noise_len,loss=loss,is_aegan=is_aegan,mask=mask) #,loss='max'
+    generator_net = GeneratorNet(net,input_noise_size=noise_len,loss=loss,is_aegan=is_aegan,mask=mask,gen_type=gen_type)
     generator_net.train_generator_on_neuron(
         neuron,
         data_len=eq_train_set_len,
@@ -444,23 +445,32 @@ def generate_masks(net,dataset,mask_threshold,num_images=50,experiment='000'):
     np.save(f'output/02_masks/{experiment}_hardmasks.npy',hard_mask)
 
 @experiment_args
-def plot_equivariances(neuron,experiment='000',mask=False,include_mei=False):
+def plot_equivariances(net,neuron,experiment='000',mask=False,include_mei=False,apply_blur=False):
     invariances = np.load(f'output/06_invariances/{experiment}_neuron{neuron}_equivariance.npy')
     activations = np.load(f'output/06_invariances/{experiment}_neuron{neuron}_activations.npy')
     mei_act = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')[neuron]
+    print(activations[0])
+    print(mei_act)
 
-    #TODO: Reshape when saving
+    if include_mei:
+        mei = np.load(f'output/04_mei/{experiment}_mei_n.npy')[neuron]
+        invariances[-1] = mei
+        activations[-1] = mei_act
     mask_text = ''
     invariances = np.reshape(invariances,(-1,31,31))
+    if apply_blur:
+        activations = net.generate_prediction(np.reshape(invariances,(-1,961)))[:,neuron]
+
     if mask:
         neuron_mask = np.load(f'output/02_masks/{experiment}_hardmasks.npy')[neuron]
         neuron_mask = np.where(neuron_mask==0,np.nan,neuron_mask)
         neuron_mask = np.where(neuron_mask==1,0,neuron_mask)
         invariances = invariances + np.tile(neuron_mask,(np.shape(invariances)[0],1,1))
         mask_text = '_masked'
-    if include_mei:
-        pass
+    
+
     titles = [f'{act/mei_act:.2f}' for act in activations]
+    
     plot_grid(invariances,titles,num_cols=4,save_path=f'output/06_invariances/{experiment}_plot{mask_text}.png',show=True)
 
 def basic_setup(experiment='000'):

@@ -6,7 +6,7 @@ from NDN3.NDN import NDN
 from NDN3 import NDNutils
 
 class GeneratorNet:
-    def __init__(self,original_nets,input_noise_size,loss='oneside-gaussian',is_aegan=False,mask=None):
+    def __init__(self,original_nets,input_noise_size,loss='oneside-gaussian',is_aegan=False,mask=None,gen_type='conv'):
         # Save parameters
         if not isinstance(original_nets,list):
             original_nets = [original_nets]
@@ -22,7 +22,7 @@ class GeneratorNet:
             assert input_stimuli_size==network.input_sizes[0] , f'Network {i} has different input shape. Expected {input_stimuli_size}, given {network.input_sizes}'
         
         # Create generator
-        generator = self.get_gan_subnet(input_noise_size, input_stimuli_size)
+        generator = self.get_gan_subnet(input_noise_size, input_stimuli_size,gen_type)
         self.generator_subnet_id = 0
         merged_networks = [generator]
         net_prefix_num = 1
@@ -196,24 +196,35 @@ class GeneratorNet:
             layer_target.copy_layer_params(layer_source)
 
 
-    def get_gan_subnet(self,input_noise_size,output_shape):
+    def get_gan_subnet(self,input_noise_size,output_shape,generator_type='conv'):
         output_shape = output_shape[1:]
         out = [64,8,8]
-        
-        params = NDNutils.ffnetwork_params(
-            input_dims=[1, input_noise_size],
-            layer_sizes=[out,32,16,1,1], 
-            layer_types=['normal','deconv','deconv','deconv','mask'],
-            act_funcs=['relu','relu','relu','tanh','lin'],
-            conv_filter_widths=[None,5,5,5,None],
-            shift_spacing=[None,2,2,1,None],
-            reg_list={
-                #'l2':[0.001,None,None,None],
-                'd2x': [None,None,0.01,0.01,None]
-            },
-            verbose=False
-        )
-            
+        if generator_type=='conv':
+            params = NDNutils.ffnetwork_params(
+                input_dims=[1, input_noise_size],
+                layer_sizes=[out,32,16,1,1], 
+                layer_types=['normal','deconv','deconv','deconv','mask'],
+                act_funcs=['relu','relu','relu','tanh','lin'],
+                conv_filter_widths=[None,5,5,5,None],
+                shift_spacing=[None,2,2,1,None],
+                reg_list={
+                    #'l2':[0.001,None,None,None],
+                    'd2x': [None,None,0.01,0.01,None]
+                },
+                verbose=False
+            )
+        else:
+            params = NDNutils.ffnetwork_params(
+                input_dims=[1, input_noise_size],
+                layer_sizes=[512,1024,[1,31,31],1],
+                layer_types=['normal','normal','normal','mask'],
+                act_funcs=['relu','relu','tanh','lin'],
+                reg_list={
+                    'l2':[0.001,0.001,None,None],
+                },
+                verbose=False
+            )
+
         params['xstim_n'] = [0]
         params['normalize_output'] =  [None,None,None,None,None]
         params['weights_initializers']=['normal','normal','normal','normal','ones']
