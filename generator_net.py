@@ -224,7 +224,7 @@ class GeneratorNet:
                 layer_types=['normal','normal','normal','mask'],
                 act_funcs=['relu','relu','tanh','lin'],
                 reg_list={
-                    'l2':[0.001,0.001,None,None],
+                    'l2':[0.001,0.001,0.01,None],
                 },
                 verbose=False
             )
