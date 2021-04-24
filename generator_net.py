@@ -213,6 +213,10 @@ class GeneratorNet:
                 },
                 verbose=False
             )
+            params['normalize_output'] =  [None,None,None,None,None]
+            params['weights_initializers']=['normal','normal','normal','normal','ones']
+            params['biases_initializers']=['zeros','zeros','zeros','zeros','zeros']
+            params['output_shape'] = [None,None,output_shape,output_shape,None]
         else:
             params = NDNutils.ffnetwork_params(
                 input_dims=[1, input_noise_size],
@@ -225,11 +229,10 @@ class GeneratorNet:
                 verbose=False
             )
 
-        params['xstim_n'] = [0]
-        params['normalize_output'] =  [None,None,None,None,None]
-        params['weights_initializers']=['normal','normal','normal','normal','ones']
-        params['biases_initializers']=['zeros','zeros','zeros','zeros','zeros']
-        params['output_shape'] = [None,None,output_shape,output_shape,None]
+            params['xstim_n'] = [0]
+            params['normalize_output'] =  [None,None,None,None]
+            params['weights_initializers']=['normal','normal','normal','ones']
+            params['biases_initializers']=['zeros','zeros','zeros','zeros']
         return params
 
     def get_encoder(self,noise_size, input_shape,ffnet_in):
