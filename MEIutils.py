@@ -367,7 +367,7 @@ def generate_equivariance(
         f'output/06_invariances/{experiment}_neuron{neuron}_activations.npy',
         activations
     )
-    generator_net.extract_generator().save_model(f'output/{experiment}_neuron{neuron}_generator.pkl')
+    generator_net.extract_generator().save_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
 
 def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.cm.RdYlBu):
     num_images = len(images)
