@@ -258,7 +258,7 @@ hlk:
   mask_threshold: 0.0001
   noise_len: 128
   num_equivariance_clusters: 24
-  eq_train_set_len: 100000 #0
+  eq_train_set_len: 1000000
   perc: 0.95
   eq_epochs: 15
   gen_type: 'conv'
@@ -281,7 +281,7 @@ hlk:
   mask_threshold: 0.0001
   noise_len: 128
   num_equivariance_clusters: 24
-  eq_train_set_len: 100000 #0
+  eq_train_set_len: 1000000
   perc: 0.95
   eq_epochs: 15
   gen_type: 'lin'
@@ -304,7 +304,7 @@ hlk:
   mask_threshold: 0.0001
   noise_len: 128
   num_equivariance_clusters: 24
-  eq_train_set_len: 100000 #0
+  eq_train_set_len: 1000000
   perc: 0.95
   eq_epochs: 15
   gen_type: 'conv'
