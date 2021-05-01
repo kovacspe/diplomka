@@ -1,15 +1,10 @@
 import os
 import yaml
 import sys
-NN = [83,28,49,23,18,102]
-NEURONS = [28,74,66,23,83,]#53,54,72,50,24]
-name = sys.argv[1] if len(sys.argv)>1 else 'untitled'
-models = [
-    'models/best_dog.pkl',
-    #'models/conv-dog-convDoG-c_size15-layersep-reg_h0.01-hidden9-exp_nameconv-dog.pkl'
-]
 
-for exp in ['006dog', '007dog']:
+nets = sys.argv[1:]
+
+for exp in nets:
     with open('utils/experiments.yml','r') as conf_file:
         loaded_yaml = yaml.load(conf_file)
     loaded_params = loaded_yaml.get(exp,{})

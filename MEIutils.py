@@ -280,15 +280,25 @@ def neuron_description(experiment='000'):
 
 @experiment_args
 def compare_sta_mei(chosen_neurons=range(103),experiment='000'):
-    stas = np.load(f'output/03_sta/{experiment}_sta_normalized.npy')[chosen_neurons]
+    stas = np.load(f'output/03_sta/{experiment}_sta.npy')[chosen_neurons]
     sta_activations = np.load(f'output/03_sta/{experiment}_sta_activations.npy')[chosen_neurons]
+    stas_n = np.load(f'output/03_sta/{experiment}_sta_n.npy')[chosen_neurons]
+    sta_activations_n = np.load(f'output/03_sta/{experiment}_sta_activations_n.npy')[chosen_neurons]
     meis = np.load(f'output/04_mei/{experiment}_mei.npy')[chosen_neurons]
-
     mei_activations = np.load(f'output/04_mei/{experiment}_mei_activations.npy')[chosen_neurons]
-    titles = [f'{i} - STA - {act:.2f}' for i,act in zip(chosen_neurons,sta_activations)]
-    titles = titles + [f'{i} - MEI - {act:.2f}' for i,act in zip(chosen_neurons,mei_activations)]
-    plot_grid(np.concatenate([stas,meis]),titles,save_path=f'output/05_compare_mei_sta/{experiment}_comparison.png',show=True)
+    meis_n = np.load(f'output/04_mei/{experiment}_mei_n.npy')[chosen_neurons]
+    mei_activations_n = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')[chosen_neurons]
 
+    titles = [f'{i} - STA - {act:.2f}' for i,act in zip(chosen_neurons,sta_activations)]
+    titles = titles + [f'{i} - STAn - {act:.2f}' for i,act in zip(chosen_neurons,sta_activations_n)]
+    titles = titles + [f'{i} - MEI - {act:.2f}' for i,act in zip(chosen_neurons,mei_activations)]
+    titles = titles + [f'{i} - MEIn - {act:.2f}' for i,act in zip(chosen_neurons,mei_activations_n)]
+    plot_grid(np.concatenate([stas,stas_n,meis,meis_n]),titles,save_path=f'output/05_compare_mei_sta/{experiment}_comparison.png',show=False)
+    acts_df = pd.DataFrame(zip(sta_activations,sta_activations_n,mei_activations,mei_activations_n),columns=['STA activation', 'STA norm activation', 'MEI activation', 'MEI norm activation'])
+    acts_df['score'] = acts_df['MEI norm activation']-acts_df['STA norm activation']
+    acts_df.sort_values('score',ascending=False,inplace=True)
+    with open(f'output/07_correlations/{experiment}_act_table.tex','w') as f:
+        f.write(acts_df.to_latex())
 
 @experiment_args
 def generate_equivariance(
@@ -303,7 +313,8 @@ def generate_equivariance(
         loss='oneside-gaussian',
         mask=False,
         gen_type='conv',
-        experiment='000'
+        experiment='000',
+        norm='post'
     ):
     _, input_size_x, input_size_y = net.input_sizes[0]
     # Load precomputed MEI
@@ -315,29 +326,38 @@ def generate_equivariance(
         mask = None
     train_log = f'output/tf/{experiment}-{neuron}'
     net2 = copy.deepcopy(net)
-    generator_net = GeneratorNet(net,input_noise_size=noise_len,loss=loss,is_aegan=is_aegan,mask=mask,gen_type=gen_type)
+    generator_net = GeneratorNet(
+        net,
+        input_noise_size=noise_len,
+        loss=loss,
+        is_aegan=is_aegan,
+        mask=mask,
+        gen_type=gen_type,
+        norm=norm
+    )
     generator_net.train_generator_on_neuron(
         neuron,
         data_len=eq_train_set_len,
-        l2_norm=1,
         max_activation=max_activation,
         perc=perc,
         epochs=eq_epochs,
-        train_log=train_log)
+        train_log=train_log
+    )
     image_out = generator_net.generate_stimulus(num_samples=10000)
 
     # Cluster images
-    kmeans = AgglomerativeClustering(n_clusters=num_equivariance_clusters,affinity='cosine',linkage='complete').fit(image_out)
-    x=[]
-    for i in range(num_equivariance_clusters):
-        x.append(image_out[kmeans.labels_==i][0,:])
-    x[-1] = np.zeros_like(x[-1])
-    x = np.vstack(x)
-
+    try:
+        kmeans = AgglomerativeClustering(n_clusters=num_equivariance_clusters,affinity='cosine',linkage='complete').fit(image_out)
+        x=[]
+        for i in range(num_equivariance_clusters):
+            x.append(image_out[kmeans.labels_==i][0,:])
+        x = np.vstack(x)
+    except ValueError:
+        x = image_out[:24,:]
 
     # Compute activations  
     activations = net2.generate_prediction(x)[:,neuron]
-
+    
     # Plot receptive fields 
     np.save(
         f'output/06_invariances/{experiment}_neuron{neuron}_equivariance.npy',
@@ -347,6 +367,7 @@ def generate_equivariance(
         f'output/06_invariances/{experiment}_neuron{neuron}_activations.npy',
         activations
     )
+    generator_net.extract_generator().save_model(f'output/{experiment}_neuron{neuron}_generator.pkl')
 
 def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.cm.RdYlBu):
     num_images = len(images)
@@ -383,8 +404,11 @@ def generate_sta(dataset,net,experiment='000'):
     sta = STA_LR(x, y, 10000).transpose()
     sta_normalized =  (sta - sta.mean(axis=0)) / sta.std(axis=0)
 
-    activations = net.generate_prediction(sta_normalized)
+    activations = net.generate_prediction(sta)
     sta_activations = [activations[i,i] for i in range(len(activations))]
+
+    activations_n = net.generate_prediction(sta_normalized)
+    sta_activations_n = [activations_n[i,i] for i in range(len(activations_n))]
 
     sta_predictions = np.array(test_x*sta.T)
     sta_correlations = [stats.pearsonr(sta_predictions[:,i],test_y[:,i])[0] for i in range(np.shape(y)[1])]
@@ -393,8 +417,9 @@ def generate_sta(dataset,net,experiment='000'):
     sta = np.array(sta).reshape((-1,input_size_x,input_size_y))
     sta_normalized = np.array(sta_normalized).reshape((-1,input_size_x,input_size_y))
     np.save(f'output/03_sta/{experiment}_sta.npy', sta)
-    np.save(f'output/03_sta/{experiment}_sta_normalized.npy', sta_normalized)
+    np.save(f'output/03_sta/{experiment}_sta_n.npy', sta_normalized)
     np.save(f'output/03_sta/{experiment}_sta_activations.npy', sta_activations)
+    np.save(f'output/03_sta/{experiment}_sta_activations_n.npy', sta_activations_n)
     np.save(f'output/03_sta/{experiment}_sta_correlations.npy', sta_correlations)
     titles = [f'{i} - A:{act:.2f} C:{corr:.2f}' for i,(act,corr) in enumerate(zip(sta_activations,sta_correlations))]
     plot_grid(list(sta),titles,save_path=f'output/03_sta/{experiment}_sta.png',show=True)

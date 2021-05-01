@@ -6,7 +6,7 @@ from NDN3.NDN import NDN
 from NDN3 import NDNutils
 
 class GeneratorNet:
-    def __init__(self,original_nets,input_noise_size,loss='oneside-gaussian',is_aegan=False,mask=None,gen_type='conv'):
+    def __init__(self,original_nets,input_noise_size,loss='oneside-gaussian',norm='online',is_aegan=False,mask=None,gen_type='conv'):
         # Save parameters
         if not isinstance(original_nets,list):
             original_nets = [original_nets]
@@ -14,6 +14,9 @@ class GeneratorNet:
         self.original_nets = [copy.deepcopy(net) for net in original_nets] 
         self.noise_size = input_noise_size
         self.is_aegan = is_aegan
+        if norm not in ['online','post','none']:
+            raise ValueError(f'Incorrect norm \'{norm}\'. Norm should be one of online/post/none')
+        self.current_norm = norm
 
         # Assert all networks has only one input of a same shape
         input_stimuli_size = self.original_nets[-1].input_sizes[0]
@@ -89,7 +92,7 @@ class GeneratorNet:
             layers_to_skip=layers_to_skip, fit_biases=False)
 
 
-    def train_generator_on_neuron(self,optimize_neuron,data_len,l2_norm=None,max_activation=None,perc=0.9,epochs=5,noise_input=None,output=None,train_log=None):
+    def train_generator_on_neuron(self,optimize_neuron,data_len,max_activation=None,perc=0.9,epochs=5,noise_input=None,output=None,train_log=None):
         if output is not None and noise_input is None:
             raise ValueError('Output specified, but no input provided')
 
@@ -124,14 +127,13 @@ class GeneratorNet:
             )
         print(len(output))
         # Set L2-norm on output
-        if l2_norm is not None:
+        if self.current_norm=='online':
             # if not isinstance(l2_norm,list):
             #     l2_norm = [l2_norm]
             #if not self.is_aegan: 
-            self.net_with_generator.networks[self.generator_subnet_id].layers[-1].normalize_output = l2_norm
+            self.net_with_generator.networks[self.generator_subnet_id].layers[-1].normalize_output = True
             #else:
             #    self.net_with_generator.networks[-1].layers[0].normalize_output = l2_norm
-        self.current_l2_norm = l2_norm
 
         # Generator training
         self.net_with_generator.train(
@@ -162,8 +164,8 @@ class GeneratorNet:
             noise_dist='max',
             input_dim_list=[self.net_with_generator.network_list[self.generator_subnet_id]['input_dims']]
         )
-        if self.current_l2_norm is not None:
-            generator_subnet.networks[-1].layers[-1].normalize_output = self.current_l2_norm
+        if self.current_norm=='post':
+            generator_subnet.networks[-1].layers[-1].normalize_output = True
 
         # Copy weights
         GeneratorNet._copy_net_params(
@@ -172,8 +174,6 @@ class GeneratorNet:
             self.generator_subnet_id,
             0
         )
-        if self.current_l2_norm is not None:
-            generator_subnet.networks[-1].layers[-1].normalize_output = self.current_l2_norm
 
         return generator_subnet
     
@@ -222,7 +222,7 @@ class GeneratorNet:
                 input_dims=[1, input_noise_size],
                 layer_sizes=[512,1024,[1,31,31],1],
                 layer_types=['normal','normal','normal','mask'],
-                act_funcs=['tanh','tanh','tanh','lin'],
+                act_funcs=['tanh','tanh','lin','lin'],
                 reg_list={
                     'l2':[0.01,0.01,0.01,None],
                 },
