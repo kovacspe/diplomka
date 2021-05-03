@@ -367,7 +367,9 @@ def generate_equivariance(
         f'output/06_invariances/{experiment}_neuron{neuron}_activations.npy',
         activations
     )
-    generator_net.extract_generator().save_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
+    generator = generator_net.extract_generator()
+    print(generator.networks[-1].layers[-1].normalize_output)
+    generator.save_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
 
 def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.cm.RdYlBu):
     num_images = len(images)
@@ -393,6 +395,12 @@ def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.c
     if show:
         plt.show()
 
+
+def mask_stimuli(stimuli,experiment,neuron):
+    neuron_mask = np.load(f'output/02_masks/{experiment}_hardmasks.npy')[neuron]
+    neuron_mask = np.where(neuron_mask==0,np.nan,neuron_mask)
+    neuron_mask = np.where(neuron_mask==1,0,neuron_mask)
+    return stimuli + np.tile(neuron_mask,(np.shape(stimuli)[0],1,1))
 
 @experiment_args
 def generate_sta(dataset,net,experiment='000'):
@@ -470,12 +478,39 @@ def generate_masks(net,dataset,mask_threshold,num_images=50,experiment='000'):
     np.save(f'output/02_masks/{experiment}_hardmasks.npy',hard_mask)
 
 @experiment_args
-def plot_equivariances(net,neuron,experiment='000',mask=False,include_mei=False,apply_blur=False):
+def plot_interpolations(net,neuron,experiment='000',mask=False,num_interpolations=8,num_samples=8):
+    inputs = []
+    generator = NDN.load_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
+    print(generator.networks[-1].layers[-1].normalize_output)
+    noise_shape = generator.input_sizes[0][1]
+    mei_act = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')[neuron]
+    for i in range(num_interpolations):
+        first_point = np.random.normal(0.0,1.0,noise_shape)
+        first_point /=np.linalg.norm(first_point,axis=0)
+        second_point = np.random.normal(0.0,1.0,noise_shape)
+        #second_point /=np.linalg.norm(second_point,axis=0)
+        print(np.linspace(first_point,-first_point,num_samples).shape)
+        inputs.append(np.linspace(first_point,-first_point,num_samples))
+    noise_samples = np.vstack(inputs)
+    print(noise_samples.shape)
+    invariances = generator.generate_prediction(noise_samples)
+    mask_text = ''
+    if mask:
+        invariances = mask_stimuli(invariances,experiment,neuron)
+        mask_text = '_masked'
+    activations = net.generate_prediction(invariances)[:,neuron]
+    print(activations)
+    titles = [f'{act/mei_act:.2f}' for act in activations]
+    invariances = np.reshape(invariances,(-1,31,31))
+    plot_grid(invariances,titles,num_cols=8,save_path=f'output/06_invariances/{experiment}_interpolations_plot{mask_text}.png',show=True)
+
+@experiment_args
+def plot_equivariances(net,neuron,experiment='000',mask=False,include_mei=False):
     invariances = np.load(f'output/06_invariances/{experiment}_neuron{neuron}_equivariance.npy')
     activations = np.load(f'output/06_invariances/{experiment}_neuron{neuron}_activations.npy')
     mei_act = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')[neuron]
-    print(activations[0])
-    print(mei_act)
+    print('Mean invariance images activations' +str(np.mean(activations[0])))
+    print(f'MEI activation: {mei_act}')
 
     if include_mei:
         mei = np.load(f'output/04_mei/{experiment}_mei_n.npy')[neuron]
@@ -483,22 +518,16 @@ def plot_equivariances(net,neuron,experiment='000',mask=False,include_mei=False,
         activations[-1] = mei_act
     mask_text = ''
     invariances = np.reshape(invariances,(-1,31,31))
-    if apply_blur:
-        activations = net.generate_prediction(np.reshape(invariances,(-1,961)))[:,neuron]
 
     if mask:
-        neuron_mask = np.load(f'output/02_masks/{experiment}_hardmasks.npy')[neuron]
-        neuron_mask = np.where(neuron_mask==0,np.nan,neuron_mask)
-        neuron_mask = np.where(neuron_mask==1,0,neuron_mask)
-        invariances = invariances + np.tile(neuron_mask,(np.shape(invariances)[0],1,1))
+        invariances = mask_stimuli(invariances,experiment,neuron)
         mask_text = '_masked'
     
-
     titles = [f'{act/mei_act:.2f}' for act in activations]
-    
     plot_grid(invariances,titles,num_cols=4,save_path=f'output/06_invariances/{experiment}_plot{mask_text}.png',show=True)
 
 def basic_setup(experiment='000'):
+    print(f'running experiment {experiment}')
     generate_sta(experiment=experiment)
     generate_mei(experiment=experiment)
     generate_masks(experiment=experiment)
@@ -514,6 +543,7 @@ if __name__ == '__main__':
         'corr': correlations,
         'neuron_desc': neuron_description,
         'plot_equivariances': plot_equivariances,
+        'plot_interpolations': plot_interpolations,
         'compare': compare_sta_mei,
         'basic': basic_setup
         }
