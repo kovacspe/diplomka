@@ -5,6 +5,7 @@ import math
 import fire
 import numpy as np
 import numpy.linalg
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pandas as pd
 from scipy import stats
@@ -23,6 +24,10 @@ from utils.data_loaders import AntolikDataLoader
 from utils.experiment_params import experiment_args
 from utils.misc_utils import evaluate_performance
 
+def norm_samples(samples):
+    axis = tuple(range(1,samples.ndim))
+    samples = np.array(samples)
+    return (samples - np.mean(samples,axis=axis,keepdims=True)) / np.std(samples,axis=axis,keepdims=True) 
 
 def compute_mask(net: NDN, neuron: int, images: np.array, try_pixels=range(0, 2, 1)):
     num_images, num_pixels = np.shape(images)
@@ -289,11 +294,11 @@ def compare_sta_mei(chosen_neurons=range(103),experiment='000'):
     meis_n = np.load(f'output/04_mei/{experiment}_mei_n.npy')[chosen_neurons]
     mei_activations_n = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')[chosen_neurons]
 
-    titles = [f'{i} - STA - {act:.2f}' for i,act in zip(chosen_neurons,sta_activations)]
-    titles = titles + [f'{i} - STAn - {act:.2f}' for i,act in zip(chosen_neurons,sta_activations_n)]
-    titles = titles + [f'{i} - MEI - {act:.2f}' for i,act in zip(chosen_neurons,mei_activations)]
+    #titles = [f'{i} - STA - {act:.2f}' for i,act in zip(chosen_neurons,sta_activations)]
+    titles = [f'{i} - STAn - {act:.2f}' for i,act in zip(chosen_neurons,sta_activations_n)]
+    #titles = titles + [f'{i} - MEI - {act:.2f}' for i,act in zip(chosen_neurons,mei_activations)]
     titles = titles + [f'{i} - MEIn - {act:.2f}' for i,act in zip(chosen_neurons,mei_activations_n)]
-    plot_grid(np.concatenate([stas,stas_n,meis,meis_n]),titles,save_path=f'output/05_compare_mei_sta/{experiment}_comparison.png',show=False)
+    plot_grid(np.concatenate([stas_n,meis_n]),titles,save_path=f'output/05_compare_mei_sta/{experiment}_comparison.png',show=False)
     acts_df = pd.DataFrame(zip(sta_activations,sta_activations_n,mei_activations,mei_activations_n),columns=['STA activation', 'STA norm activation', 'MEI activation', 'MEI norm activation'])
     acts_df['score'] = acts_df['MEI norm activation']-acts_df['STA norm activation']
     acts_df.sort_values('score',ascending=False,inplace=True)
@@ -371,7 +376,7 @@ def generate_equivariance(
     print(generator.networks[-1].layers[-1].normalize_output)
     generator.save_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
 
-def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.cm.RdYlBu):
+def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.cm.RdYlBu,highlight=None):
     num_images = len(images)
     if titles is None:
         titles=['']*num_images
@@ -379,11 +384,15 @@ def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.c
         assert num_images==len(titles)
     num_rows = math.ceil(num_images/num_cols)
     fig, ax1 = plt.subplots(num_rows, num_cols,figsize=(3*num_cols,2.5*num_rows))
-
+    mpl.rcParams['axes.linewidth'] = 20
     for i, (img,tit) in enumerate(zip(images,titles)):
+        np.testing.assert_almost_equal(np.mean(img),0.0,decimal=2,err_msg='Mean is not 0')
+        np.testing.assert_almost_equal(np.std(img),1.0,decimal=2,err_msg='Standard deviation is not 1')
         ax1[i // num_cols, i%num_cols].imshow(img,cmap=cmap)
         ax1[i // num_cols, i%num_cols].set_xticklabels([],[])
         ax1[i // num_cols, i%num_cols].set_yticklabels([],[])
+        if highlight is not None and i in highlight:
+            [sp.set_linewidth(3) for _,sp in ax1[i // num_cols, i%num_cols].spines.items()]
         if len(tit)>0:
             ax1[i // num_cols, i%num_cols].set_title(tit,fontsize=10)
     for i in range(num_images,num_cols*num_rows):
@@ -403,14 +412,14 @@ def mask_stimuli(stimuli,experiment,neuron):
     return stimuli + np.tile(neuron_mask,(np.shape(stimuli)[0],1,1))
 
 @experiment_args
-def generate_sta(dataset,net,experiment='000'):
+def generate_sta(dataset,net,experiment='000',chosen_neurons=None):
     x, y = dataset.train()
     x = np.matrix(x)
     y = np.matrix(y)
     test_x, test_y = dataset.val()
 
     sta = STA_LR(x, y, 10000).transpose()
-    sta_normalized =  (sta - sta.mean(axis=0)) / sta.std(axis=0)
+    sta_normalized =  norm_samples(sta)
 
     activations = net.generate_prediction(sta)
     sta_activations = [activations[i,i] for i in range(len(activations))]
@@ -429,8 +438,8 @@ def generate_sta(dataset,net,experiment='000'):
     np.save(f'output/03_sta/{experiment}_sta_activations.npy', sta_activations)
     np.save(f'output/03_sta/{experiment}_sta_activations_n.npy', sta_activations_n)
     np.save(f'output/03_sta/{experiment}_sta_correlations.npy', sta_correlations)
-    titles = [f'{i} - A:{act:.2f} C:{corr:.2f}' for i,(act,corr) in enumerate(zip(sta_activations,sta_correlations))]
-    plot_grid(list(sta),titles,save_path=f'output/03_sta/{experiment}_sta.png',show=True)
+    titles = [f'{i} - A:{act:.2f} C:{corr:.2f}' for i,(act,corr) in enumerate(zip(sta_activations_n,sta_correlations))]
+    plot_grid(list(sta_normalized),titles,save_path=f'output/03_sta/{experiment}_sta.png',show=True,highlight=chosen_neurons)
 
 @experiment_args
 def generate_mei(net,dataset,experiment='000'):
@@ -445,7 +454,7 @@ def generate_mei(net,dataset,experiment='000'):
         net = find_MEI(net,neuron, 80)
         mei = get_filter(net)
         mei_activation = net2.generate_prediction(np.reshape(mei,(1,-1)))[0,neuron]
-        mei_normalized =  (mei - mei.mean(axis=0)) / mei.std(axis=0)
+        mei_normalized =  norm_samples(mei)
         mei_activation_normalized = net2.generate_prediction(np.reshape(mei_normalized,(1,-1)))[0,neuron]
         meis.append(mei)
         activations.append(mei_activation)
@@ -453,13 +462,13 @@ def generate_mei(net,dataset,experiment='000'):
         activations_n.append(mei_activation_normalized)
     # meis = np.load(f'output/04_mei/{experiment}_mei.npy',)
     # activations = np.load(f'output/04_mei/{experiment}_mei_activations.npy')
-    titles = [f'{i} - {act:.3f}' for i,act in enumerate(activations+activations_n)]
+    titles = [f'{i} - {act:.3f}' for i,act in enumerate(activations_n)]
     np.save(f'output/04_mei/{experiment}_mei.npy',meis)
     np.save(f'output/04_mei/{experiment}_mei_activations.npy',activations)
     np.save(f'output/04_mei/{experiment}_mei_n.npy',meis_n)
     np.save(f'output/04_mei/{experiment}_mei_activations_n.npy',activations_n)
 
-    plot_grid(meis+meis_n,titles,num_cols=8,save_path=f'output/04_mei/{experiment}_mei.png',show=True)
+    plot_grid(meis_n,titles,num_cols=8,save_path=f'output/04_mei/{experiment}_mei.png',show=True)
 
 @experiment_args
 def generate_masks(net,dataset,mask_threshold,num_images=50,experiment='000'):

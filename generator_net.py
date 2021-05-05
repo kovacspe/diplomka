@@ -176,11 +176,7 @@ class GeneratorNet:
             noise_dist='max',
             input_dim_list=[
                 self.net_with_generator.network_list[self.generator_subnet_id]['input_dims']]
-        )
-        if self.current_norm == 'post':
-            generator_subnet.networks[-1].layers[-1].normalize_output = True
-        print('Norm set to')
-        print(generator_subnet.networks[-1].layers[-1].normalize_output)
+        )  
 
         # Copy weights
         GeneratorNet._copy_net_params(
@@ -189,6 +185,8 @@ class GeneratorNet:
             self.generator_subnet_id,
             0
         )
+        if self.current_norm == 'post':
+            generator_subnet.networks[-1].layers[-1].normalize_output = True
 
         return generator_subnet
 
