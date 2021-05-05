@@ -1,6 +1,3 @@
 [submodule "NDN3"]
 	path = NDN3
 	url = https://github.com/kovacspe/NDN3.git
-[submodule "Sinz2018_NIPS"]
-	path = Sinz2018_NIPS
-	url = https://github.com/kovacspe/Sinz2018_NIPS.git
