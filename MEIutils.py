@@ -315,7 +315,7 @@ def generate_equivariance(
         eq_train_set_len=10000,
         eq_epochs=5,
         is_aegan=False,
-        loss='oneside-gaussian',
+        loss='gaussian',
         mask=False,
         gen_type='conv',
         experiment='000',
