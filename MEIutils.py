@@ -293,12 +293,16 @@ def compare_sta_mei(chosen_neurons=range(103),experiment='000'):
     mei_activations = np.load(f'output/04_mei/{experiment}_mei_activations.npy')[chosen_neurons]
     meis_n = np.load(f'output/04_mei/{experiment}_mei_n.npy')[chosen_neurons]
     mei_activations_n = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')[chosen_neurons]
+    print(np.shape(meis_n))
+    meis_n = np.vstack([mask_stimuli(mei[np.newaxis,:],experiment,neuron) for neuron,mei in zip(chosen_neurons,meis_n)])
+    print(np.shape(meis_n))
 
-    #titles = [f'{i} - STA - {act:.2f}' for i,act in zip(chosen_neurons,sta_activations)]
-    titles = [f'{i} - STAn - {act:.2f}' for i,act in zip(chosen_neurons,sta_activations_n)]
-    #titles = titles + [f'{i} - MEI - {act:.2f}' for i,act in zip(chosen_neurons,mei_activations)]
-    titles = titles + [f'{i} - MEIn - {act:.2f}' for i,act in zip(chosen_neurons,mei_activations_n)]
-    plot_grid(np.concatenate([stas_n,meis_n]),titles,save_path=f'output/05_compare_mei_sta/{experiment}_comparison.png',show=False)
+    row_names = ['Linear RF', 'Linear RF\nnorm','MEI', 'MEI\nnorm']
+    titles = [f'{i} - {act:.2f}' for i,act in zip(chosen_neurons,sta_activations)]
+    titles += [f'{i} - {act:.2f}' for i,act in zip(chosen_neurons,sta_activations_n)]
+    titles += [f'{i} - {act:.2f}' for i,act in zip(chosen_neurons,mei_activations)]
+    titles += [f'{i} - {act:.2f}' for i,act in zip(chosen_neurons,mei_activations_n)]
+    plot_grid(np.concatenate([stas,stas_n,meis,meis_n]),titles,save_path=f'output/05_compare_mei_sta/{experiment}_comparison.png',show=False,row_names=row_names)
     acts_df = pd.DataFrame(zip(sta_activations,sta_activations_n,mei_activations,mei_activations_n),columns=['STA activation', 'STA norm activation', 'MEI activation', 'MEI norm activation'])
     acts_df['score'] = acts_df['MEI norm activation']-acts_df['STA norm activation']
     acts_df.sort_values('score',ascending=False,inplace=True)
@@ -376,7 +380,7 @@ def generate_equivariance(
     print(generator.networks[-1].layers[-1].normalize_output)
     generator.save_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
 
-def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.cm.RdYlBu,highlight=None):
+def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.cm.RdYlBu,highlight=None,row_names=None):
     num_images = len(images)
     if titles is None:
         titles=['']*num_images
@@ -386,15 +390,20 @@ def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.c
     fig, ax1 = plt.subplots(num_rows, num_cols,figsize=(3*num_cols,2.5*num_rows))
     mpl.rcParams['axes.linewidth'] = 20
     for i, (img,tit) in enumerate(zip(images,titles)):
-        np.testing.assert_almost_equal(np.mean(img),0.0,decimal=2,err_msg='Mean is not 0')
-        np.testing.assert_almost_equal(np.std(img),1.0,decimal=2,err_msg='Standard deviation is not 1')
+        print(f'{i}: {np.mean(img)}, {np.std(img)}')
+        # np.testing.assert_almost_equal(np.mean(img),0.0,decimal=2,err_msg='Mean is not 0')
+        # np.testing.assert_almost_equal(np.std(img),1.0,decimal=2,err_msg='Standard deviation is not 1')
         ax1[i // num_cols, i%num_cols].imshow(img,cmap=cmap)
         ax1[i // num_cols, i%num_cols].set_xticklabels([],[])
         ax1[i // num_cols, i%num_cols].set_yticklabels([],[])
         if highlight is not None and i in highlight:
-            [sp.set_linewidth(3) for _,sp in ax1[i // num_cols, i%num_cols].spines.items()]
+            [sp.set_linewidth(5) for _,sp in ax1[i // num_cols, i%num_cols].spines.items()]
+        if row_names is not None:
+            ax1[i // num_cols, 0].annotate(row_names[i // num_cols], xy=(0, 0.5), xytext=(-ax1[i // num_cols, 0].yaxis.labelpad - 5, 0),
+                xycoords=ax1[i // num_cols, 0].yaxis.label, textcoords='offset points',
+                size=25, ha='right', va='center')
         if len(tit)>0:
-            ax1[i // num_cols, i%num_cols].set_title(tit,fontsize=10)
+            ax1[i // num_cols, i%num_cols].set_title(tit,fontsize=20)
     for i in range(num_images,num_cols*num_rows):
         fig.delaxes(ax1[i // num_cols, i%num_cols])
 
@@ -439,7 +448,7 @@ def generate_sta(dataset,net,experiment='000',chosen_neurons=None):
     np.save(f'output/03_sta/{experiment}_sta_activations_n.npy', sta_activations_n)
     np.save(f'output/03_sta/{experiment}_sta_correlations.npy', sta_correlations)
     titles = [f'{i} - A:{act:.2f} C:{corr:.2f}' for i,(act,corr) in enumerate(zip(sta_activations_n,sta_correlations))]
-    plot_grid(list(sta_normalized),titles,save_path=f'output/03_sta/{experiment}_sta.png',show=True,highlight=chosen_neurons)
+    plot_grid(list(sta_normalized),titles,save_path=f'output/03_sta/{experiment}_sta.png',show=False,highlight=chosen_neurons)
 
 @experiment_args
 def generate_mei(net,dataset,experiment='000'):
