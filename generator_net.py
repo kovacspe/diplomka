@@ -210,12 +210,11 @@ class GeneratorNet:
 
     def get_gan_subnet(self, input_noise_size, output_shape, generator_type='conv'):
         output_shape = output_shape[1:]
-        out = [64, 8, 8]
         layers=5
         if generator_type == 'conv':
             params = NDNutils.ffnetwork_params(
                 input_dims=[1, input_noise_size],
-                layer_sizes=[out, 32, 16, 1, 1],
+                layer_sizes=[[64, 8, 8], 32, 16, 1, 1],
                 layer_types=['normal', 'deconv', 'deconv', 'deconv', 'mask'],
                 act_funcs=['relu', 'relu', 'relu', 'tanh', 'lin'],
                 conv_filter_widths=[None, 5, 5, 5, None],
@@ -227,12 +226,30 @@ class GeneratorNet:
             )
             params['output_shape'] = [None, None,
                                       output_shape, output_shape, None]
-        elif generator_type == 'lin':
+
+        elif generator_type =='deepconv':
+            params = NDNutils.ffnetwork_params(
+                input_dims=[1, input_noise_size],
+                layer_sizes=[[512, 4, 4], 256, 128, 1, 1],
+                layer_types=['normal', 'deconv', 'deconv','deconv', 'mask'],
+                act_funcs=['relu', 'relu', 'relu','tanh', 'lin'],
+                conv_filter_widths=[None, 5, 5, 5, None],
+                shift_spacing=[None, 2, 2, 2, None],
+                reg_list={
+                    'd2x': [None, None, None, 0.01, None]
+                },
+                verbose=False
+            )
+            params['output_shape'] = [None, None,
+                                      None, output_shape, None]
+
+        elif generator_type == 'lin' or generator_type=='lin_tanh':
+            act = 'lin' if generator_type=='lin' else 'tanh'
             params = NDNutils.ffnetwork_params(
                 input_dims=[1, input_noise_size],
                 layer_sizes=[512, 1024, [1, 31, 31], 1],
                 layer_types=['normal', 'normal', 'normal', 'mask'],
-                act_funcs=['tanh', 'tanh', 'lin', 'lin'],
+                act_funcs=['tanh', 'tanh', act, 'lin'],
                 reg_list={
                     'l2': [0.01, 0.01, 0.01, None],
                 },

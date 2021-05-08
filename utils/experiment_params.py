@@ -19,8 +19,9 @@ def experiment_args(func):
             for key,value in loaded_params.items():
                 if key in varnames:
                     update_params[key] = value
-        kwargs.update(update_params)
-        print(kwargs)
+        update_params.update(kwargs)
+        print(update_params)
+        kwargs = update_params
         # Load model if net path in args
         if 'net' in kwargs and isinstance(kwargs['net'],str):
             kwargs['net'] = NDN.load_model(kwargs['net'])

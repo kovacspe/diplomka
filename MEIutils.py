@@ -302,7 +302,7 @@ def compare_sta_mei(chosen_neurons=range(103),experiment='000'):
     titles += [f'{i} - {act:.2f}' for i,act in zip(chosen_neurons,sta_activations_n)]
     titles += [f'{i} - {act:.2f}' for i,act in zip(chosen_neurons,mei_activations)]
     titles += [f'{i} - {act:.2f}' for i,act in zip(chosen_neurons,mei_activations_n)]
-    plot_grid(np.concatenate([stas,stas_n,meis,meis_n]),titles,save_path=f'output/05_compare_mei_sta/{experiment}_comparison.png',show=False,row_names=row_names)
+    plot_grid(np.concatenate([stas,stas_n,meis,meis_n]),titles,save_path=f'output/05_compare_mei_sta/{experiment}_comparison.png',show=False,row_names=row_names,ignore_assertion=True)
     acts_df = pd.DataFrame(zip(sta_activations,sta_activations_n,mei_activations,mei_activations_n),columns=['STA activation', 'STA norm activation', 'MEI activation', 'MEI norm activation'])
     acts_df['score'] = acts_df['MEI norm activation']-acts_df['STA norm activation']
     acts_df.sort_values('score',ascending=False,inplace=True)
@@ -380,20 +380,23 @@ def generate_equivariance(
     print(generator.networks[-1].layers[-1].normalize_output)
     generator.save_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
 
-def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.cm.RdYlBu,highlight=None,row_names=None):
+def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.cm.RdYlBu,highlight=None,row_names=None, ignore_assertion=False):
     num_images = len(images)
     if titles is None:
         titles=['']*num_images
     else:
         assert num_images==len(titles)
+    min_pixel = np.min(images)
+    max_pixel = np.max(images)
     num_rows = math.ceil(num_images/num_cols)
     fig, ax1 = plt.subplots(num_rows, num_cols,figsize=(3*num_cols,2.5*num_rows))
-    mpl.rcParams['axes.linewidth'] = 20
+    
     for i, (img,tit) in enumerate(zip(images,titles)):
         print(f'{i}: {np.mean(img)}, {np.std(img)}')
-        # np.testing.assert_almost_equal(np.mean(img),0.0,decimal=2,err_msg='Mean is not 0')
-        # np.testing.assert_almost_equal(np.std(img),1.0,decimal=2,err_msg='Standard deviation is not 1')
-        ax1[i // num_cols, i%num_cols].imshow(img,cmap=cmap)
+        if not ignore_assertion:
+            np.testing.assert_almost_equal(np.mean(img),0.0,decimal=2,err_msg='Mean is not 0')
+            np.testing.assert_almost_equal(np.std(img),1.0,decimal=2,err_msg='Standard deviation is not 1')
+        ax1[i // num_cols, i%num_cols].imshow(img,cmap=cmap,vmin=min_pixel,vmax=max_pixel)
         ax1[i // num_cols, i%num_cols].set_xticklabels([],[])
         ax1[i // num_cols, i%num_cols].set_yticklabels([],[])
         if highlight is not None and i in highlight:
@@ -499,7 +502,6 @@ def generate_masks(net,dataset,mask_threshold,num_images=50,experiment='000'):
 def plot_interpolations(net,neuron,experiment='000',mask=False,num_interpolations=8,num_samples=8):
     inputs = []
     generator = NDN.load_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
-    print(generator.networks[-1].layers[-1].normalize_output)
     noise_shape = generator.input_sizes[0][1]
     mei_act = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')[neuron]
     for i in range(num_interpolations):
@@ -510,17 +512,58 @@ def plot_interpolations(net,neuron,experiment='000',mask=False,num_interpolation
         print(np.linspace(first_point,-first_point,num_samples).shape)
         inputs.append(np.linspace(first_point,-first_point,num_samples))
     noise_samples = np.vstack(inputs)
-    print(noise_samples.shape)
     invariances = generator.generate_prediction(noise_samples)
     mask_text = ''
     if mask:
         invariances = mask_stimuli(invariances,experiment,neuron)
         mask_text = '_masked'
     activations = net.generate_prediction(invariances)[:,neuron]
-    print(activations)
     titles = [f'{act/mei_act:.2f}' for act in activations]
     invariances = np.reshape(invariances,(-1,31,31))
-    plot_grid(invariances,titles,num_cols=8,save_path=f'output/06_invariances/{experiment}_interpolations_plot{mask_text}.png',show=True)
+    plot_grid(invariances,titles,num_cols=8,save_path=f'output/06_invariances/{experiment}_{neuron}_interpolations_plot{mask_text}.png',show=True)
+
+@experiment_args
+def plot_from_generator(net,neuron,num_equivariance_clusters,experiment='000',include_mei=False,mask=False,max_error=0.05,perc=0.95,noise_len=128):
+    inputs = []
+    generator = NDN.load_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
+    noise_shape = generator.input_sizes[0][1]
+    mei_act = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')[neuron]
+    noise_input = np.random.uniform(-2, 2,size=(10000, noise_len))
+    invariances = generator.generate_prediction(noise_input)
+    activations = net.generate_prediction(invariances)[:,neuron]
+    print(np.shape(invariances))
+    print(np.shape(activations))
+    invariances = invariances[
+        (activations<=(perc+max_error)*mei_act)&(activations>=(perc-max_error)*mei_act)
+        ]
+    activations = activations[(activations<=(perc+max_error)*mei_act)&(activations>=(perc-max_error)*mei_act)]
+
+    try:
+        kmeans = AgglomerativeClustering(n_clusters=num_equivariance_clusters,affinity='cosine',linkage='complete').fit(invariances)
+        images = []
+        acts = []
+        for i in range(num_equivariance_clusters):
+            images.append(invariances[kmeans.labels_==i][0,:])
+            acts.append(activations[kmeans.labels_==i][0])
+        images = np.vstack(images)
+        acts = np.array(acts)
+    except ValueError:
+        print(f'Clustering failed ... taking first {num_equivariance_clusters} images')
+        images = invariances[:num_equivariance_clusters,:]
+        acts = activations[:num_equivariance_clusters]
+    _, input_size_x, input_size_y = net.input_sizes[0]
+    print(np.shape(acts))
+    print(acts)
+    np.save(
+        f'output/06_invariances/{experiment}_neuron{neuron}_equivariance.npy',
+        np.reshape(images,(-1,input_size_x,input_size_y))
+    )
+    np.save(
+        f'output/06_invariances/{experiment}_neuron{neuron}_activations.npy',
+        acts
+    )
+    plot_equivariances(experiment=experiment,neuron=neuron,include_mei=include_mei,mask=mask)
+
 
 @experiment_args
 def plot_equivariances(net,neuron,experiment='000',mask=False,include_mei=False):
@@ -542,13 +585,18 @@ def plot_equivariances(net,neuron,experiment='000',mask=False,include_mei=False)
         mask_text = '_masked'
     
     titles = [f'{act/mei_act:.2f}' for act in activations]
-    plot_grid(invariances,titles,num_cols=4,save_path=f'output/06_invariances/{experiment}_plot{mask_text}.png',show=True)
+    plot_grid(invariances,titles,num_cols=4,save_path=f'output/06_invariances/{experiment}_{neuron}_plot{mask_text}.png',show=False)
 
 def basic_setup(experiment='000'):
     print(f'running experiment {experiment}')
     generate_sta(experiment=experiment)
     generate_mei(experiment=experiment)
     generate_masks(experiment=experiment)
+
+@experiment_args
+def plot_all_from_generator(chosen_neurons,experiment='000',mask=False,include_mei=False,max_error=0.05):
+    for neuron in chosen_neurons:
+        plot_from_generator(neuron=neuron,experiment=experiment,include_mei=include_mei,mask=mask,max_error=max_error)
 
 
 if __name__ == '__main__':
@@ -562,6 +610,8 @@ if __name__ == '__main__':
         'neuron_desc': neuron_description,
         'plot_equivariances': plot_equivariances,
         'plot_interpolations': plot_interpolations,
+        'plot_from_generator': plot_from_generator,
+        'plot_all_from_generator': plot_all_from_generator,
         'compare': compare_sta_mei,
         'basic': basic_setup
         }
