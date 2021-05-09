@@ -256,6 +256,38 @@ def get_filter(net,reshape=True):
     else:
         return raw_filter
 
+def sample_sphere(num_samples,ndims):
+    vec = np.random.randn(ndims, num_samples)
+    vec /= np.linalg.norm(vec, axis=0)
+    return vec
+
+def choose_representant(num_representative_samples,net,neuron,stimuli,activation_lowerbound=-np.inf,activation_upperbound=np.inf):
+    # Filter stimuli
+    activations = net.generate_prediction(stimuli)[:,neuron]
+    print(f'Genrated stimuli:{len(stimuli)}')
+    stimuli = stimuli[
+        (activations<=activation_upperbound)&(activations>=activation_lowerbound)
+        ]
+    print(f'Filtred stimuli:{len(stimuli)}')
+    activations = activations[(activations<=activation_upperbound)&(activations>=activation_lowerbound)]
+
+    try:
+        kmeans = AgglomerativeClustering(n_clusters=num_representative_samples,affinity='cosine',linkage='complete').fit(stimuli)
+        images = []
+        acts = []
+        for i in range(num_representative_samples):
+            images.append(stimuli[kmeans.labels_==i][0,:])
+            acts.append(activations[kmeans.labels_==i][0])
+        images = np.vstack(images)
+        acts = np.array(acts)
+    except ValueError:
+        print(f'Clustering failed ... taking first {num_representative_samples} images')
+        images = stimuli[:num_representative_samples,:]
+        acts = activations[:num_representative_samples]
+    print(np.shape(images))
+    print(np.shape(acts))
+    return images,acts
+
 @experiment_args
 def correlations(net,dataset,experiment='000'):
     train_x, train_y = dataset.train()
@@ -334,7 +366,7 @@ def generate_equivariance(
     else:
         mask = None
     train_log = f'output/tf/{experiment}-{neuron}'
-    net2 = copy.deepcopy(net)
+    net_copy = copy.deepcopy(net)
     generator_net = GeneratorNet(
         net,
         input_noise_size=noise_len,
@@ -354,19 +386,8 @@ def generate_equivariance(
     )
     image_out = generator_net.generate_stimulus(num_samples=10000)
 
-    # Cluster images
-    try:
-        kmeans = AgglomerativeClustering(n_clusters=num_equivariance_clusters,affinity='cosine',linkage='complete').fit(image_out)
-        x=[]
-        for i in range(num_equivariance_clusters):
-            x.append(image_out[kmeans.labels_==i][0,:])
-        x = np.vstack(x)
-    except ValueError:
-        x = image_out[:24,:]
+    x,activations = choose_representant(num_equivariance_clusters,net_copy,neuron,image_out,0.05,0.05)
 
-    # Compute activations  
-    activations = net2.generate_prediction(x)[:,neuron]
-    
     # Plot receptive fields 
     np.save(
         f'output/06_invariances/{experiment}_neuron{neuron}_equivariance.npy',
@@ -472,8 +493,7 @@ def generate_mei(net,dataset,experiment='000'):
         activations.append(mei_activation)
         meis_n.append(mei_normalized)
         activations_n.append(mei_activation_normalized)
-    # meis = np.load(f'output/04_mei/{experiment}_mei.npy',)
-    # activations = np.load(f'output/04_mei/{experiment}_mei_activations.npy')
+
     titles = [f'{i} - {act:.3f}' for i,act in enumerate(activations_n)]
     np.save(f'output/04_mei/{experiment}_mei.npy',meis)
     np.save(f'output/04_mei/{experiment}_mei_activations.npy',activations)
@@ -523,6 +543,30 @@ def plot_interpolations(net,neuron,experiment='000',mask=False,num_interpolation
     plot_grid(invariances,titles,num_cols=8,save_path=f'output/06_invariances/{experiment}_{neuron}_interpolations_plot{mask_text}.png',show=True)
 
 @experiment_args
+def plot_sphere_samples(net,neuron,experiment='000',mask=False,num_samples=8):
+    inputs = []
+    generator = NDN.load_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
+    noise_shape = generator.input_sizes[0][1]
+    mei_act = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')[neuron]
+    for i in range(num_interpolations):
+        first_point = np.random.normal(0.0,1.0,noise_shape)
+        first_point /=np.linalg.norm(first_point,axis=0)
+        second_point = np.random.normal(0.0,1.0,noise_shape)
+        #second_point /=np.linalg.norm(second_point,axis=0)
+        print(np.linspace(first_point,-first_point,num_samples).shape)
+        inputs.append(np.linspace(first_point,-first_point,num_samples))
+    noise_samples = np.vstack(inputs)
+    invariances = generator.generate_prediction(noise_samples)
+    mask_text = ''
+    if mask:
+        invariances = mask_stimuli(invariances,experiment,neuron)
+        mask_text = '_masked'
+    activations = net.generate_prediction(invariances)[:,neuron]
+    titles = [f'{act/mei_act:.2f}' for act in activations]
+    invariances = np.reshape(invariances,(-1,31,31))
+    plot_grid(invariances,titles,num_cols=8,save_path=f'output/06_invariances/{experiment}_{neuron}_sphere_plot{mask_text}.png',show=True)
+
+@experiment_args
 def plot_from_generator(net,neuron,num_equivariance_clusters,experiment='000',include_mei=False,mask=False,max_error=0.05,perc=0.95,noise_len=128):
     inputs = []
     generator = NDN.load_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
@@ -530,37 +574,19 @@ def plot_from_generator(net,neuron,num_equivariance_clusters,experiment='000',in
     mei_act = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')[neuron]
     noise_input = np.random.uniform(-2, 2,size=(10000, noise_len))
     invariances = generator.generate_prediction(noise_input)
-    activations = net.generate_prediction(invariances)[:,neuron]
-    print(np.shape(invariances))
-    print(np.shape(activations))
-    invariances = invariances[
-        (activations<=(perc+max_error)*mei_act)&(activations>=(perc-max_error)*mei_act)
-        ]
-    activations = activations[(activations<=(perc+max_error)*mei_act)&(activations>=(perc-max_error)*mei_act)]
 
-    try:
-        kmeans = AgglomerativeClustering(n_clusters=num_equivariance_clusters,affinity='cosine',linkage='complete').fit(invariances)
-        images = []
-        acts = []
-        for i in range(num_equivariance_clusters):
-            images.append(invariances[kmeans.labels_==i][0,:])
-            acts.append(activations[kmeans.labels_==i][0])
-        images = np.vstack(images)
-        acts = np.array(acts)
-    except ValueError:
-        print(f'Clustering failed ... taking first {num_equivariance_clusters} images')
-        images = invariances[:num_equivariance_clusters,:]
-        acts = activations[:num_equivariance_clusters]
+    images,activations = choose_representant(num_equivariance_clusters,net,neuron,invariances,
+    activation_lowerbound=(perc-max_error)*mei_act,
+    activation_upperbound=(perc+max_error)*mei_act)
+   
     _, input_size_x, input_size_y = net.input_sizes[0]
-    print(np.shape(acts))
-    print(acts)
     np.save(
         f'output/06_invariances/{experiment}_neuron{neuron}_equivariance.npy',
         np.reshape(images,(-1,input_size_x,input_size_y))
     )
     np.save(
         f'output/06_invariances/{experiment}_neuron{neuron}_activations.npy',
-        acts
+        activations
     )
     plot_equivariances(experiment=experiment,neuron=neuron,include_mei=include_mei,mask=mask)
 
@@ -598,6 +624,39 @@ def plot_all_from_generator(chosen_neurons,experiment='000',mask=False,include_m
     for neuron in chosen_neurons:
         plot_from_generator(neuron=neuron,experiment=experiment,include_mei=include_mei,mask=mask,max_error=max_error)
 
+@experiment_args
+def compare_generators(neuron,net,experiment='000',generator_experiment=[],generator_names=[],num_per_net=6,mask=False,max_error=0.05,perc=0.95):
+    images = []
+    titles = []
+    base_exp = generator_experiment[0]
+    mei_act = np.load(f'output/04_mei/{base_exp}_mei_activations_n.npy')[neuron]
+    noise_input = np.random.uniform(-2, 2,size=(10000, 128))
+    mei = np.load(f'output/04_mei/{base_exp}_mei_n.npy')[neuron]
+
+    for generator_exp,generator_name in zip(generator_experiment,generator_names):
+        generator = NDN.load_model(f'output/08_generators/{generator_exp}_neuron{neuron}_generator.pkl')
+        invariances = generator.generate_prediction(noise_input)
+        invariances,activations = choose_representant(num_per_net,net,neuron,invariances,
+            activation_lowerbound=(perc-max_error)*mei_act,
+            activation_upperbound=(perc+max_error)*mei_act)
+        print(np.shape(invariances))
+        if len(invariances)<num_per_net:
+            raise ValueError('Cannot generate samples with given conditions')
+        images.append(invariances)
+        titles+=list(activations)
+    images.append(np.reshape(mei,(1,-1)))
+    images=np.vstack(images)
+    #titles = np.ndarray.flatten(titles)
+    #print(np.shape(titles))
+    titles.append(mei_act)
+    titles = [f'{tit/mei_act:.2f}' for tit in titles]
+    print(titles)
+    print(np.shape(titles))
+    images = np.reshape(images,(-1,31,31))
+    if mask:
+        invariances = mask_stimuli(images,base_exp,neuron)
+
+    plot_grid(images,titles,num_cols=num_per_net,save_path=f'output/08_generators/neuron{neuron}_compare_generator.png',row_names=generator_names+['MEI'])
 
 if __name__ == '__main__':
     fire.Fire({
@@ -613,6 +672,7 @@ if __name__ == '__main__':
         'plot_from_generator': plot_from_generator,
         'plot_all_from_generator': plot_all_from_generator,
         'compare': compare_sta_mei,
+        'compare_generators': compare_generators,
         'basic': basic_setup
         }
     )

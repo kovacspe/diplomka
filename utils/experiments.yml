@@ -269,6 +269,7 @@
     - 64
     - 95
 
+
 014dog:
   code: 014
   net: 'models/best_dog.pkl'
@@ -316,7 +317,120 @@
     - 95
 
 ################################
+020dog:
+  code: 020
+  net: 'models/best_dog.pkl'
+  dataset: 'antolik1'
+  mask_threshold: 0.0001
+  noise_len: 128
+  num_equivariance_clusters: 24
+  eq_train_set_len: 1000000
+  perc: 1.1
+  eq_epochs: 20
+  gen_type: 'lin'
+  norm: 'online'
+  loss: 'gaussian'
+  chosen_neurons: 
+    - 83
+    - 28
+    - 49
+    - 23
+    - 18
+    - 102
+    - 64
+    - 95
 
+021dog:
+  code: 021
+  net: 'models/best_dog.pkl'
+  dataset: 'antolik1'
+  mask_threshold: 0.0001
+  noise_len: 128
+  num_equivariance_clusters: 24
+  eq_train_set_len: 1000000
+  perc: 1.25
+  eq_epochs: 20
+  gen_type: 'lin'
+  norm: 'online'
+  loss: 'gaussian'
+  chosen_neurons: 
+    - 83
+    - 28
+    - 49
+    - 23
+    - 18
+    - 102
+    - 64
+    - 95
+
+022dog:
+  code: 022
+  net: 'models/best_dog.pkl'
+  dataset: 'antolik1'
+  mask_threshold: 0.0001
+  noise_len: 128
+  num_equivariance_clusters: 24
+  eq_train_set_len: 1000000
+  perc: 2
+  eq_epochs: 20
+  gen_type: 'lin'
+  norm: 'online'
+  loss: 'gaussian'
+  chosen_neurons: 
+    - 83
+    - 28
+    - 49
+    - 23
+    - 18
+    - 102
+    - 64
+    - 95
+
+023dog:
+  code: 023
+  net: 'models/best_dog.pkl'
+  dataset: 'antolik1'
+  mask_threshold: 0.0001
+  noise_len: 128
+  num_equivariance_clusters: 24
+  eq_train_set_len: 1000000
+  perc: 0.8
+  eq_epochs: 20
+  gen_type: 'lin'
+  norm: 'online'
+  loss: 'gaussian'
+  chosen_neurons: 
+    - 83
+    - 28
+    - 49
+    - 23
+    - 18
+    - 102
+    - 64
+    - 95
+
+024dog:
+  code: 024
+  net: 'models/best_dog.pkl'
+  dataset: 'antolik1'
+  mask_threshold: 0.0001
+  noise_len: 128
+  num_equivariance_clusters: 24
+  eq_train_set_len: 1000000
+  perc: 0.5
+  eq_epochs: 20
+  gen_type: 'lin'
+  norm: 'online'
+  loss: 'gaussian'
+  chosen_neurons: 
+    - 83
+    - 28
+    - 49
+    - 23
+    - 18
+    - 102
+    - 64
+    - 95
 
 025dog:
   code: 025
@@ -329,7 +443,7 @@
   perc: 0.95
   eq_epochs: 25
   gen_type: 'lin'
-  norm: 'post'
+  norm: 'online'
   loss: 'max'
   chosen_neurons: 
     - 83
@@ -352,7 +466,7 @@
   perc: 10
   eq_epochs: 25
   gen_type: 'lin'
-  norm: 'post'
+  norm: 'online'
   loss: 'gaussian'
   chosen_neurons: 
     - 83
@@ -363,3 +477,19 @@
     - 102
     - 64
     - 95
+
+#######################
+
+comp000:
+  net: 'models/best_dog.pkl'
+  generator_experiment:
+    - 001dog
+    - 003dog
+    - 005dog
+    - 007dog
+  generator_names:
+    - 'FC'
+    - 'Conv'
+    - 'Hybrid'
+    - 'FC tanh'
+  num_per_net: 6

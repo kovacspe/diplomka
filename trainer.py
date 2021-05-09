@@ -77,7 +77,7 @@ def run(model_type,data_type,**kwargs):
     print('creating_trainer')
     trainer = Trainer(data_loader,model,kwargs)
     print('Running_experiment ... ')
-    for seed in range(2):
+    for seed in range(10):
         print('Run with seed ', seed,' ...')
         trainer.run_experiment(kwargs['exp_name'],seed,f'{model_type}-{data_type}-{seed}')
     
