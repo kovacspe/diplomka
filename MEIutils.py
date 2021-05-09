@@ -548,14 +548,7 @@ def plot_sphere_samples(net,neuron,experiment='000',mask=False,num_samples=8):
     generator = NDN.load_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
     noise_shape = generator.input_sizes[0][1]
     mei_act = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')[neuron]
-    for i in range(num_interpolations):
-        first_point = np.random.normal(0.0,1.0,noise_shape)
-        first_point /=np.linalg.norm(first_point,axis=0)
-        second_point = np.random.normal(0.0,1.0,noise_shape)
-        #second_point /=np.linalg.norm(second_point,axis=0)
-        print(np.linspace(first_point,-first_point,num_samples).shape)
-        inputs.append(np.linspace(first_point,-first_point,num_samples))
-    noise_samples = np.vstack(inputs)
+    noise_samples = sample_sphere(num_samples,)
     invariances = generator.generate_prediction(noise_samples)
     mask_text = ''
     if mask:
