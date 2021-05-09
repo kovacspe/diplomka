@@ -9,6 +9,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pandas as pd
 from scipy import stats
+from scipy.ndimage.filters import gaussian_filter
 from sklearn.cluster import KMeans,AgglomerativeClustering
 from sklearn.metrics.pairwise import pairwise_distances
 import tensorflow as tf
@@ -548,7 +549,7 @@ def plot_sphere_samples(net,neuron,experiment='000',mask=False,num_samples=8):
     generator = NDN.load_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
     noise_shape = generator.input_sizes[0][1]
     mei_act = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')[neuron]
-    noise_samples = sample_sphere(num_samples,)
+    noise_samples = sample_sphere(num_samples,noise_shape)
     invariances = generator.generate_prediction(noise_samples)
     mask_text = ''
     if mask:
@@ -594,8 +595,7 @@ def plot_equivariances(net,neuron,experiment='000',mask=False,include_mei=False)
 
     if include_mei:
         mei = np.load(f'output/04_mei/{experiment}_mei_n.npy')[neuron]
-        invariances[-1] = mei
-        activations[-1] = mei_act
+        invariances = np.vstack([np.reshape(invariances,(-1,np.shape(mei)[1])),mei]) 
     mask_text = ''
     invariances = np.reshape(invariances,(-1,31,31))
 
@@ -603,8 +603,8 @@ def plot_equivariances(net,neuron,experiment='000',mask=False,include_mei=False)
         invariances = mask_stimuli(invariances,experiment,neuron)
         mask_text = '_masked'
     
-    titles = [f'{act/mei_act:.2f}' for act in activations]
-    plot_grid(invariances,titles,num_cols=4,save_path=f'output/06_invariances/{experiment}_{neuron}_plot{mask_text}.png',show=False)
+    titles = [f'{act/mei_act:.2f}' for act in activations] + ['1.00']
+    plot_grid(invariances,titles,num_cols=5,save_path=f'output/06_invariances/{experiment}_{neuron}_plot{mask_text}.png',show=False)
 
 def basic_setup(experiment='000'):
     print(f'running experiment {experiment}')
@@ -616,6 +616,28 @@ def basic_setup(experiment='000'):
 def plot_all_from_generator(chosen_neurons,experiment='000',mask=False,include_mei=False,max_error=0.05):
     for neuron in chosen_neurons:
         plot_from_generator(neuron=neuron,experiment=experiment,include_mei=include_mei,mask=mask,max_error=max_error)
+
+@experiment_args
+def plot_invariance_summary(net,chosen_neurons,perc,experiment='000',mask=False,max_error=0.05,num_samples=8):
+    row_names = [str(n) for n in chosen_neurons]
+    mei = np.load(f'output/04_mei/{experiment}_mei_n.npy')
+    mei_act = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')
+    titles = []
+    all_images = []
+    for neuron in chosen_neurons:
+        generator = NDN.load_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
+        noise_shape = generator.input_sizes[0][1]
+        noise_input = np.random.uniform(-2, 2,size=(1000, noise_shape))
+        invariances = generator.generate_prediction(noise_input)
+        images,activations = choose_representant(num_samples,net,neuron,invariances,
+        activation_lowerbound=(perc-max_error)*mei_act[neuron],
+        activation_upperbound=(perc+max_error)*mei_act[neuron])
+        images[0] =np.reshape(mei[neuron],(1,-1))
+        all_images.append(images)
+        activations[0] = mei_act[neuron]
+        titles += [f'{act/activations[0]:.2f}' for act in activations]
+    all_images = np.reshape(np.vstack(all_images),(-1,31,31))
+    plot_grid(all_images,titles,num_cols=num_samples,save_path=f'output/08_generators/{experiment}_invariance_overview.png',show=False,row_names=row_names)
 
 @experiment_args
 def compare_generators(neuron,net,experiment='000',generator_experiment=[],generator_names=[],num_per_net=6,mask=False,max_error=0.05,perc=0.95):
@@ -639,12 +661,10 @@ def compare_generators(neuron,net,experiment='000',generator_experiment=[],gener
         titles+=list(activations)
     images.append(np.reshape(mei,(1,-1)))
     images=np.vstack(images)
-    #titles = np.ndarray.flatten(titles)
-    #print(np.shape(titles))
+
     titles.append(mei_act)
     titles = [f'{tit/mei_act:.2f}' for tit in titles]
-    print(titles)
-    print(np.shape(titles))
+
     images = np.reshape(images,(-1,31,31))
     if mask:
         invariances = mask_stimuli(images,base_exp,neuron)
@@ -664,8 +684,10 @@ if __name__ == '__main__':
         'plot_interpolations': plot_interpolations,
         'plot_from_generator': plot_from_generator,
         'plot_all_from_generator': plot_all_from_generator,
+        'plot_invariance_summary': plot_invariance_summary,
         'compare': compare_sta_mei,
         'compare_generators': compare_generators,
-        'basic': basic_setup
+        'basic': basic_setup,
+        
         }
     )
