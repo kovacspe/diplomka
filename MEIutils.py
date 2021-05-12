@@ -7,6 +7,7 @@ import numpy as np
 import numpy.linalg
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import pandas as pd
 from scipy import stats
 from scipy.ndimage.filters import gaussian_filter
@@ -30,7 +31,7 @@ def norm_samples(samples):
     samples = np.array(samples)
     return (samples - np.mean(samples,axis=axis,keepdims=True)) / np.std(samples,axis=axis,keepdims=True) 
 
-def compute_mask(net: NDN, neuron: int, images: np.array, try_pixels=range(0, 2, 1)):
+def compute_mask(net: NDN, images: np.array, try_pixels=range(0, 2, 1)):
     num_images, num_pixels = np.shape(images)
     activations = net.generate_prediction(images)
     mask = np.zeros(num_pixels)
@@ -330,12 +331,18 @@ def compare_sta_mei(chosen_neurons=range(103),experiment='000'):
     meis_n = np.vstack([mask_stimuli(mei[np.newaxis,:],experiment,neuron) for neuron,mei in zip(chosen_neurons,meis_n)])
     print(np.shape(meis_n))
 
-    row_names = ['Linear RF', 'Linear RF\nnorm','MEI', 'MEI\nnorm']
-    titles = [f'{i} - {act:.2f}' for i,act in zip(chosen_neurons,sta_activations)]
-    titles += [f'{i} - {act:.2f}' for i,act in zip(chosen_neurons,sta_activations_n)]
-    titles += [f'{i} - {act:.2f}' for i,act in zip(chosen_neurons,mei_activations)]
-    titles += [f'{i} - {act:.2f}' for i,act in zip(chosen_neurons,mei_activations_n)]
-    plot_grid(np.concatenate([stas,stas_n,meis,meis_n]),titles,save_path=f'output/05_compare_mei_sta/{experiment}_comparison.png',show=False,row_names=row_names,ignore_assertion=True)
+    col_names = [str(n) for n in chosen_neurons]
+    row_names = ['Linear RF','MEI']
+    titles = [f'{act:.2f}' for act in sta_activations]
+    titles += [f'{act:.2f}' for act in mei_activations]
+    plot_grid(np.concatenate([stas,meis]),titles,save_path=f'output/05_compare_mei_sta/{experiment}_comparison.png',show=False,row_names=row_names,ignore_assertion=True,col_names=col_names,common_scale=False)
+
+    row_names = ['Linear RF\nnorm', 'MEI\nnorm']
+    titles = [f'{act:.2f}' for act in sta_activations_n]
+    titles += [f'{act:.2f}' for act in mei_activations_n]
+    plot_grid(np.concatenate([stas_n,meis_n]),titles,save_path=f'output/05_compare_mei_sta/{experiment}_n_comparison.png',show=False,row_names=row_names,ignore_assertion=True,col_names=col_names)
+
+
     acts_df = pd.DataFrame(zip(sta_activations,sta_activations_n,mei_activations,mei_activations_n),columns=['STA activation', 'STA norm activation', 'MEI activation', 'MEI norm activation'])
     acts_df['score'] = acts_df['MEI norm activation']-acts_df['STA norm activation']
     acts_df.sort_values('score',ascending=False,inplace=True)
@@ -402,23 +409,36 @@ def generate_equivariance(
     print(generator.networks[-1].layers[-1].normalize_output)
     generator.save_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
 
-def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.cm.RdYlBu,highlight=None,row_names=None, ignore_assertion=False):
+def plot_grid(
+    images,
+    titles=None,
+    num_cols=8,
+    save_path=None,
+    show=False,
+    cmap=plt.cm.RdYlBu,
+    highlight=None,
+    row_names=None,
+    col_names=None,
+    ignore_assertion=False,
+    common_scale=True
+):
     num_images = len(images)
     if titles is None:
         titles=['']*num_images
     else:
         assert num_images==len(titles)
-    min_pixel = np.min(images)
-    max_pixel = np.max(images)
+    min_pixel = np.nanmin(images) if common_scale else None
+    max_pixel = np.nanmax(images) if common_scale else None
+    print(min_pixel,max_pixel)
     num_rows = math.ceil(num_images/num_cols)
-    fig, ax1 = plt.subplots(num_rows, num_cols,figsize=(3*num_cols,2.5*num_rows))
+    fig, ax1 = plt.subplots(num_rows, num_cols,figsize=(3*num_cols,3*num_rows+5))
     
     for i, (img,tit) in enumerate(zip(images,titles)):
         print(f'{i}: {np.mean(img)}, {np.std(img)}')
         if not ignore_assertion:
             np.testing.assert_almost_equal(np.mean(img),0.0,decimal=2,err_msg='Mean is not 0')
             np.testing.assert_almost_equal(np.std(img),1.0,decimal=2,err_msg='Standard deviation is not 1')
-        ax1[i // num_cols, i%num_cols].imshow(img,cmap=cmap,vmin=min_pixel,vmax=max_pixel)
+        imgp = ax1[i // num_cols, i%num_cols].imshow(img,cmap=cmap,vmin=min_pixel,vmax=max_pixel)
         ax1[i // num_cols, i%num_cols].set_xticklabels([],[])
         ax1[i // num_cols, i%num_cols].set_yticklabels([],[])
         if highlight is not None and i in highlight:
@@ -427,12 +447,25 @@ def plot_grid(images,titles=None,num_cols=8,save_path=None,show=False,cmap=plt.c
             ax1[i // num_cols, 0].annotate(row_names[i // num_cols], xy=(0, 0.5), xytext=(-ax1[i // num_cols, 0].yaxis.labelpad - 5, 0),
                 xycoords=ax1[i // num_cols, 0].yaxis.label, textcoords='offset points',
                 size=25, ha='right', va='center')
+        if col_names is not None:
+            ax1[0,i % num_cols].annotate(col_names[i % num_cols], xy=(0.5,1.15), xytext=(0, -ax1[0, i % num_cols].xaxis.labelpad + 20),
+                xycoords='axes fraction', textcoords='offset points',
+                size=25, ha='center', va='center')
         if len(tit)>0:
             ax1[i // num_cols, i%num_cols].set_title(tit,fontsize=20)
     for i in range(num_images,num_cols*num_rows):
         fig.delaxes(ax1[i // num_cols, i%num_cols])
 
-    plt.tight_layout()
+    
+    fig.subplots_adjust(bottom=0.2, top=0.80, left=0.1, right=0.99,
+                    wspace=0.02, hspace=0.2)
+
+    if common_scale:
+        cb_ax = fig.add_axes([0.15, 0.1, 0.84, 0.05])
+        cbar = fig.colorbar(imgp, cax=cb_ax,orientation='horizontal')
+        for t in cbar.ax.get_xticklabels():
+            t.set_fontsize(20)
+
     if save_path is not None:
         fig.savefig(save_path)
     if show:
@@ -510,17 +543,17 @@ def generate_masks(net,dataset,mask_threshold,num_images=50,experiment='000'):
     def mask_pixel(pixel):
         return 1 if pixel>mask_threshold else 0
     # Compute masks
-    mask = compute_mask(net,0,x,np.linspace(-1.6,1.6,10))
+    mask = compute_mask(net,x,np.linspace(-1.6,1.6,10))[:16]
     hard_mask = np.vectorize(mask_pixel)(mask)
     # Plot masks
-    plot_grid(mask,save_path=f'output/02_masks/{experiment}_masks_plot.png',cmap=plt.cm.hot)
-    plot_grid(hard_mask,save_path=f'output/02_masks/{experiment}_hardmasks_plot.png',cmap=plt.cm.hot)
+    plot_grid(mask,save_path=f'output/02_masks/{experiment}_masks_plot.png',cmap=plt.cm.hot,ignore_assertion=True)
+    plot_grid(hard_mask,save_path=f'output/02_masks/{experiment}_hardmasks_plot.png',cmap=plt.cm.hot,ignore_assertion=True,common_scale=False)
     # Save masks to npy
     np.save(f'output/02_masks/{experiment}_masks.npy',mask)
     np.save(f'output/02_masks/{experiment}_hardmasks.npy',hard_mask)
 
 @experiment_args
-def plot_interpolations(net,neuron,experiment='000',mask=False,num_interpolations=8,num_samples=8):
+def plot_interpolations(net,neuron,experiment='000',mask=False,num_interpolations=3,num_samples=6):
     inputs = []
     generator = NDN.load_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
     noise_shape = generator.input_sizes[0][1]
@@ -541,15 +574,16 @@ def plot_interpolations(net,neuron,experiment='000',mask=False,num_interpolation
     activations = net.generate_prediction(invariances)[:,neuron]
     titles = [f'{act/mei_act:.2f}' for act in activations]
     invariances = np.reshape(invariances,(-1,31,31))
-    plot_grid(invariances,titles,num_cols=8,save_path=f'output/06_invariances/{experiment}_{neuron}_interpolations_plot{mask_text}.png',show=True)
+    plot_grid(invariances,titles,num_cols=6,save_path=f'output/06_invariances/{experiment}_{neuron}_interpolations_plot{mask_text}.png',show=False)
 
 @experiment_args
-def plot_sphere_samples(net,neuron,experiment='000',mask=False,num_samples=8):
+def plot_sphere_samples(net,neuron,experiment='000',mask=False,num_samples=18):
     inputs = []
     generator = NDN.load_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
     noise_shape = generator.input_sizes[0][1]
+    print(noise_shape)
     mei_act = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')[neuron]
-    noise_samples = sample_sphere(num_samples,noise_shape)
+    noise_samples = sample_sphere(noise_shape,num_samples)
     invariances = generator.generate_prediction(noise_samples)
     mask_text = ''
     if mask:
@@ -558,7 +592,7 @@ def plot_sphere_samples(net,neuron,experiment='000',mask=False,num_samples=8):
     activations = net.generate_prediction(invariances)[:,neuron]
     titles = [f'{act/mei_act:.2f}' for act in activations]
     invariances = np.reshape(invariances,(-1,31,31))
-    plot_grid(invariances,titles,num_cols=8,save_path=f'output/06_invariances/{experiment}_{neuron}_sphere_plot{mask_text}.png',show=True)
+    plot_grid(invariances,titles,num_cols=6,save_path=f'output/06_invariances/{experiment}_{neuron}_sphere_plot{mask_text}.png',show=False)
 
 @experiment_args
 def plot_from_generator(net,neuron,num_equivariance_clusters,experiment='000',include_mei=False,mask=False,max_error=0.05,perc=0.95,noise_len=128):
@@ -624,10 +658,11 @@ def plot_invariance_summary(net,chosen_neurons,perc,experiment='000',mask=False,
     mei_act = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')
     titles = []
     all_images = []
+    
     for neuron in chosen_neurons:
         generator = NDN.load_model(f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
         noise_shape = generator.input_sizes[0][1]
-        noise_input = np.random.uniform(-2, 2,size=(1000, noise_shape))
+        noise_input = np.random.uniform(-2, 2,size=(10000, noise_shape))
         invariances = generator.generate_prediction(noise_input)
         images,activations = choose_representant(num_samples,net,neuron,invariances,
         activation_lowerbound=(perc-max_error)*mei_act[neuron],
@@ -640,7 +675,7 @@ def plot_invariance_summary(net,chosen_neurons,perc,experiment='000',mask=False,
     plot_grid(all_images,titles,num_cols=num_samples,save_path=f'output/08_generators/{experiment}_invariance_overview.png',show=False,row_names=row_names)
 
 @experiment_args
-def compare_generators(neuron,net,experiment='000',generator_experiment=[],generator_names=[],num_per_net=6,mask=False,max_error=0.05,perc=0.95):
+def compare_generators(neuron,net,experiment='000',generator_experiment=[],generator_names=[],percentage=[],num_per_net=6,mask=False,max_error=0.05,perc=0.95):
     images = []
     titles = []
     base_exp = generator_experiment[0]
@@ -648,12 +683,12 @@ def compare_generators(neuron,net,experiment='000',generator_experiment=[],gener
     noise_input = np.random.uniform(-2, 2,size=(10000, 128))
     mei = np.load(f'output/04_mei/{base_exp}_mei_n.npy')[neuron]
 
-    for generator_exp,generator_name in zip(generator_experiment,generator_names):
+    for generator_exp,generator_name,perc in zip(generator_experiment,generator_names,percentage):
         generator = NDN.load_model(f'output/08_generators/{generator_exp}_neuron{neuron}_generator.pkl')
         invariances = generator.generate_prediction(noise_input)
         invariances,activations = choose_representant(num_per_net,net,neuron,invariances,
-            activation_lowerbound=(perc-max_error)*mei_act,
-            activation_upperbound=(perc+max_error)*mei_act)
+            activation_lowerbound=(perc-max_error)*mei_act if perc is not None else -np.inf,
+            activation_upperbound=(perc+max_error)*mei_act if perc is not None else np.inf)
         print(np.shape(invariances))
         if len(invariances)<num_per_net:
             raise ValueError('Cannot generate samples with given conditions')
@@ -685,6 +720,7 @@ if __name__ == '__main__':
         'plot_from_generator': plot_from_generator,
         'plot_all_from_generator': plot_all_from_generator,
         'plot_invariance_summary': plot_invariance_summary,
+        'plot_sphere': plot_sphere_samples,
         'compare': compare_sta_mei,
         'compare_generators': compare_generators,
         'basic': basic_setup,
