@@ -249,7 +249,7 @@ class GeneratorNet:
                 input_dims=[1, input_noise_size],
                 layer_sizes=[512, 1024, [1, 31, 31], 1],
                 layer_types=['normal', 'normal', 'normal', 'mask'],
-                act_funcs=['tanh', 'tanh', act, 'lin'],
+                act_funcs=['relu', 'relu', act, 'lin'],
                 reg_list={
                     'l2': [0.01, 0.01, 0.01, None],
                 },

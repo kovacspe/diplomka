@@ -665,8 +665,9 @@ def plot_invariance_summary(net,chosen_neurons,perc,experiment='000',mask=False,
         noise_input = np.random.uniform(-2, 2,size=(10000, noise_shape))
         invariances = generator.generate_prediction(noise_input)
         images,activations = choose_representant(num_samples,net,neuron,invariances,
-        activation_lowerbound=(perc-max_error)*mei_act[neuron],
-        activation_upperbound=(perc+max_error)*mei_act[neuron])
+            activation_lowerbound=(perc-max_error)*mei_act[neuron],
+            activation_upperbound=(perc+max_error)*mei_act[neuron]
+        )
         images[0] =np.reshape(mei[neuron],(1,-1))
         all_images.append(images)
         activations[0] = mei_act[neuron]
