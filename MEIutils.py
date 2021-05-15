@@ -328,8 +328,12 @@ def compare_sta_mei(chosen_neurons=range(103),experiment='000'):
     meis_n = np.load(f'output/04_mei/{experiment}_mei_n.npy')[chosen_neurons]
     mei_activations_n = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')[chosen_neurons]
     print(np.shape(meis_n))
+    print(np.shape(stas_n))
+    stas_n = np.vstack([mask_stimuli(sta[np.newaxis,:],experiment,neuron) for neuron,sta in zip(chosen_neurons,stas_n)])
     meis_n = np.vstack([mask_stimuli(mei[np.newaxis,:],experiment,neuron) for neuron,mei in zip(chosen_neurons,meis_n)])
     print(np.shape(meis_n))
+    print(np.shape(stas_n))
+    print('-'*30)
 
     col_names = [str(n) for n in chosen_neurons]
     row_names = ['Linear RF','MEI']
@@ -431,7 +435,7 @@ def plot_grid(
     max_pixel = np.nanmax(images) if common_scale else None
     print(min_pixel,max_pixel)
     num_rows = math.ceil(num_images/num_cols)
-    fig, ax1 = plt.subplots(num_rows, num_cols,figsize=(3*num_cols,3*num_rows+5))
+    fig, ax1 = plt.subplots(num_rows, num_cols,figsize=(3*num_cols,3.05*num_rows))
     
     for i, (img,tit) in enumerate(zip(images,titles)):
         print(f'{i}: {np.mean(img)}, {np.std(img)}')
@@ -456,12 +460,20 @@ def plot_grid(
     for i in range(num_images,num_cols*num_rows):
         fig.delaxes(ax1[i // num_cols, i%num_cols])
 
-    
-    fig.subplots_adjust(bottom=0.2, top=0.80, left=0.1, right=0.99,
-                    wspace=0.02, hspace=0.2)
+    bottom = (0.03 if num_rows>4 else 0.08)+num_rows*0.002 if common_scale else 0.01
+    top = 0.8 if col_names else 0.95
+    left = 0.1 if row_names else 0.01
+    fig.subplots_adjust(
+        bottom=bottom, 
+        top=top, 
+        left=left, 
+        right=0.99,
+        wspace=0.02, 
+        hspace=0.2
+    )
 
     if common_scale:
-        cb_ax = fig.add_axes([0.15, 0.1, 0.84, 0.05])
+        cb_ax = fig.add_axes([left+ 0.05, 0.02 if num_rows>4 else 0.06, 0.9-left, max(0.02,0.002*(num_rows))])
         cbar = fig.colorbar(imgp, cax=cb_ax,orientation='horizontal')
         for t in cbar.ax.get_xticklabels():
             t.set_fontsize(20)
@@ -506,7 +518,7 @@ def generate_sta(dataset,net,experiment='000',chosen_neurons=None):
     np.save(f'output/03_sta/{experiment}_sta_activations_n.npy', sta_activations_n)
     np.save(f'output/03_sta/{experiment}_sta_correlations.npy', sta_correlations)
     titles = [f'{i} - A:{act:.2f} C:{corr:.2f}' for i,(act,corr) in enumerate(zip(sta_activations_n,sta_correlations))]
-    plot_grid(list(sta_normalized),titles,save_path=f'output/03_sta/{experiment}_sta.png',show=False,highlight=chosen_neurons)
+    plot_grid(list(sta_normalized),titles,num_cols=9,save_path=f'output/03_sta/{experiment}_sta.png',show=False,highlight=chosen_neurons)
 
 @experiment_args
 def generate_mei(net,dataset,experiment='000'):
