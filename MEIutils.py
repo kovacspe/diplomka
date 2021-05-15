@@ -296,11 +296,13 @@ def correlations(net,dataset,experiment='000'):
     test_x,test_y = dataset.val()
     train_predictions = net.generate_prediction(train_x)
     test_predictions = net.generate_prediction(test_x)
-    print(np.std(train_predictions,axis=1)[84])
+    
     print('----------')
     print(test_predictions[:84])
     train_correlations = [stats.pearsonr(train_predictions[:,i],train_y[:,i])[0] for i in range(np.shape(train_y)[1])]
     test_correlations = [stats.pearsonr(test_predictions[:,i],test_y[:,i])[0] for i in range(np.shape(test_y)[1])]
+    print(f'Train prediciton {np.mean(train_correlations)}')
+    print(f'Test prediciton {np.mean(test_correlations)}')
     np.save(f'output/07_correlations/{experiment}_train_correlations.npy',train_correlations)
     np.save(f'output/07_correlations/{experiment}_test_correlations.npy',test_correlations)
 
@@ -460,7 +462,7 @@ def plot_grid(
     for i in range(num_images,num_cols*num_rows):
         fig.delaxes(ax1[i // num_cols, i%num_cols])
 
-    bottom = (0.03 if num_rows>4 else 0.08)+num_rows*0.002 if common_scale else 0.01
+    bottom = (0.05 if num_rows>4 else 0.1)+num_rows*0.002 if common_scale else 0.01
     top = 0.8 if col_names else 0.95
     left = 0.1 if row_names else 0.01
     fig.subplots_adjust(
@@ -473,7 +475,7 @@ def plot_grid(
     )
 
     if common_scale:
-        cb_ax = fig.add_axes([left+ 0.05, 0.02 if num_rows>4 else 0.06, 0.9-left, max(0.02,0.002*(num_rows))])
+        cb_ax = fig.add_axes([left+ 0.05, 0.03 if num_rows>4 else 0.06, 0.9-left, max(0.02,0.002*(num_rows))])
         cbar = fig.colorbar(imgp, cax=cb_ax,orientation='horizontal')
         for t in cbar.ax.get_xticklabels():
             t.set_fontsize(20)
@@ -549,20 +551,28 @@ def generate_mei(net,dataset,experiment='000'):
     plot_grid(meis_n,titles,num_cols=8,save_path=f'output/04_mei/{experiment}_mei.png',show=True)
 
 @experiment_args
-def generate_masks(net,dataset,mask_threshold,num_images=50,experiment='000'):
+def generate_masks(net,dataset,mask_threshold,num_images=50,experiment='000',skip_computing=False):
     x, y = dataset.train()
     x = x[:num_images]
     def mask_pixel(pixel):
         return 1 if pixel>mask_threshold else 0
     # Compute masks
-    mask = compute_mask(net,x,np.linspace(-1.6,1.6,10))[:16]
+    if skip_computing:
+        mask = np.load(f'output/02_masks/{experiment}_masks.npy')
+        hard_mask = np.vectorize(mask_pixel)(mask)
+    else:
+        mask = compute_mask(net,x,np.linspace(-1.6,1.6,10))[:16]
+        
+        # Save masks to npy
+        np.save(f'output/02_masks/{experiment}_masks.npy',mask)
+
+    # Binary mask
     hard_mask = np.vectorize(mask_pixel)(mask)
+    np.save(f'output/02_masks/{experiment}_hardmasks.npy',hard_mask)
     # Plot masks
     plot_grid(mask,save_path=f'output/02_masks/{experiment}_masks_plot.png',cmap=plt.cm.hot,ignore_assertion=True)
     plot_grid(hard_mask,save_path=f'output/02_masks/{experiment}_hardmasks_plot.png',cmap=plt.cm.hot,ignore_assertion=True,common_scale=False)
-    # Save masks to npy
-    np.save(f'output/02_masks/{experiment}_masks.npy',mask)
-    np.save(f'output/02_masks/{experiment}_hardmasks.npy',hard_mask)
+
 
 @experiment_args
 def plot_interpolations(net,neuron,experiment='000',mask=False,num_interpolations=3,num_samples=6):
