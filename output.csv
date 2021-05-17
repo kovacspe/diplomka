@@ -1,6 +1,0 @@
-000 - baseline
-004,005 - smaller leraning rate, 
-006,007 - bigger generator
-008 - linear generator
-009 - gaussian loss
-010 - small noise len
