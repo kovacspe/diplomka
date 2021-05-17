@@ -28,17 +28,31 @@ from utils.misc_utils import evaluate_performance
 
 
 def norm_samples(samples):
+    """
+    Normalize samples to zero mean and unit std
+    """
     axis = tuple(range(1, samples.ndim))
     samples = np.array(samples)
     return (samples - np.mean(samples, axis=axis, keepdims=True)) / np.std(samples, axis=axis, keepdims=True)
 
 
 def compute_mask(net: NDN, images: np.array, try_pixels=range(0, 2, 1)):
+    """
+    Computes ROI/masks 
+        Parameters:
+            net (NDN): A trained neural network
+            images (np.array): Images to be presented to the `net` with changing values of pixel luminance
+            try_pixels (iterable): Iterable object of values of pixel luminance to add on `images`
+
+        Returns:
+            mask (np.array): Array of masks for each neuron
+    """
     num_images, num_pixels = np.shape(images)
     activations = net.generate_prediction(images)
     mask = np.zeros(num_pixels)
     net.batch_size = 512
-
+    
+    # Generate images by changing single pixel value
     inputs = []
     for pixel_position in tqdm(range(num_pixels)):
         for i, pixel in enumerate(try_pixels):
@@ -46,12 +60,15 @@ def compute_mask(net: NDN, images: np.array, try_pixels=range(0, 2, 1)):
             modified_images[:, pixel_position] += np.repeat(pixel, num_images)
             inputs.append(modified_images)
     modified_images = np.vstack(inputs)
+
+    # Predict and subtract base activation 
     predicted_activations = net.generate_prediction(
         modified_images
     )
-
     differences = predicted_activations - \
         np.tile(activations, (len(try_pixels)*num_pixels, 1))
+
+    # Compute std of each pixel and arrange result into grid shaped like stimuli
     differences = np.reshape(differences, (31, 31, -1, 103))
     mask = np.std(differences, axis=2).transpose((2, 0, 1))
     return mask
@@ -68,7 +85,10 @@ def STA_LR(training_inputs, training_set, laplace_bias):
     return numpy.linalg.pinv(training_inputs.T*training_inputs + laplace_bias*laplace) * training_inputs.T * training_set
 
 
-def laplaceBias(sizex, sizey):
+def laplaceBias(sizex:int, sizey:int):
+    """
+    Creates laplacian matrix with size `sizex` x `sizey`
+    """
     S = numpy.zeros((sizex*sizey, sizex*sizey))
     for x in range(0, sizex):
         for y in range(0, sizey):
@@ -88,29 +108,45 @@ def laplaceBias(sizex, sizey):
 
 
 def fourier_filter(sizex, sizey, alpha):
+    """
+    Creates fourier filter as described in https://www.nature.com/articles/s41593-019-0517-x?proof=t#ref-CR15
+    """
     fy = np.fft.fftfreq(sizey)[:, None]
     fx = np.fft.fftfreq(sizex)[:]
-    freqs = (fx * fx + fy * fy)  # **-alpha
-    scale = freqs
-    # print(np.shape(scale))
+    freqs = (fx * fx + fy * fy)
     scale = 1.0 / np.maximum(freqs, 1.0 / max(sizex, sizey)) ** alpha
-    scale /= (2*math.pi)**2  # np.sqrt(sizex * sizey)
+    scale /= (2*math.pi)**2  
     return scale
 
 
 def define_mei_train_step(net, var_layer, sizex, sizey, alpha):
+    """
+    Defines training step of MEI activation maximization. Applies gradient filtering
+        Parameters:
+            net (NDN): A trained neural network with variable layer
+            var_layer (NDN.Layer): Variable layer
+            sizex (int): stimuli width
+            sizex (int): stimuli height
+            alpha (float): coefficient for fourier filter
+
+        Returns:
+            train_step: tensorflow train step
+            learning_rate (tf.placeholder): Placeholder for learning rate
+    """
     learning_rate = tf.placeholder(tf.float32)
     cost = -net.cost
+    # Get gradients
     d_weights = tf.reduce_mean(
         tf.gradients(cost, [var_layer.weights_var]),
         axis=0)
+    
+    # Filter gradient in fourier domain
     d_in_fourier_domain = tf.signal.fft2d(
         tf.cast(
             tf.reshape(d_weights, (sizex, sizey)),
             dtype=tf.complex64
         )
     )
-
     d_in_fourier_domain_filtered = tf.multiply(
         d_in_fourier_domain,
         fourier_filter(sizex, sizey, alpha)
@@ -123,6 +159,7 @@ def define_mei_train_step(net, var_layer, sizex, sizey, alpha):
         dtype=tf.float32
     )
 
+    # Apply gradient
     train_step = var_layer.weights_var.assign(
         var_layer.weights_var + learning_rate*d_weights_filtered
     )
@@ -130,6 +167,15 @@ def define_mei_train_step(net, var_layer, sizex, sizey, alpha):
 
 
 def find_var_layer(net):
+    """
+    Find Variable layer in NDN network
+        Parameters:
+            net (NDN): A trained neural network with variable layer
+
+        Returns:
+            var_layer_net (NDN.FFnetwork): FFnetwork object with variable layer in it
+            learning_rate (NDN.Layer): Layer object instance of  a Variable layer
+    """
     var_layer_net = None
     var_layer_layer = None
     for i, network in enumerate(net.networks):
@@ -147,6 +193,18 @@ def find_var_layer(net):
 
 
 def train_MEI(net: NDN, input_data, output_data, data_filters, opt_args, fit_vars, var_layer):
+    """
+    Optimization of weights in variable layer to maximize neurons output
+        Parameters:
+            net (NDN): A trained neural network with variable layer
+            input_data (np.array):
+            output_data (np.array):
+            data_filters (np.array):
+            opt_args (dict):
+            fit_vars (dict):
+            var_layer (NDN.Layer):
+
+    """
     opt_params = net.optimizer_defaults(
         opt_args['opt_params'], opt_args['learning_alg'])
     epochs = opt_args['opt_params']['epochs_training']
@@ -166,13 +224,14 @@ def train_MEI(net: NDN, input_data, output_data, data_filters, opt_args, fit_var
         train_step, learning_rate = define_mei_train_step(
             net, var_layer, sizex, sizey, 0.1)
 
-        # Training
+        # Restore parameters and setup metrics
         net._restore_params(sess, input_data, output_data, data_filters)
         i = 0
         cost = float('inf')
         best_cost = float('inf')
         without_increase = 0
 
+        # Training
         while without_increase < 100 and i < epochs:
             sess.run(train_step, feed_dict={
                      net.indices: [0], learning_rate: lr})
@@ -182,6 +241,7 @@ def train_MEI(net: NDN, input_data, output_data, data_filters, opt_args, fit_var
                 print(
                     f'Cost: {cost:.5f}+{cost_reg:.5f}, best: {best_cost:.3f}')
             if i % 10 == 0:
+                # Apply gausssian blur
                 sess.run(
                     var_layer.gaussian_blur_std_var.assign(
                         var_layer.gaussian_blur_std_var*0.99
@@ -194,12 +254,23 @@ def train_MEI(net: NDN, input_data, output_data, data_filters, opt_args, fit_var
             sess.run(var_layer.gaussian_blur)
             i += 1
             without_increase += 1
+        
+        # Save trained weights
         net._write_model_params(sess)
 
     print(f'Trained with {i} epochs')
 
 
 def find_MEI(net, optimize_neuron, epochs=400):
+    """
+    Optimization of weights in variable layer to maximize neurons output
+        Parameters:
+            net (NDN): A trained neural network with variable layer
+            optimize_neuron (int):
+            epochs (int):
+
+
+    """
     # Find Variable layer
     var_layer_net, var_layer_layer = find_var_layer(net)
 
@@ -277,6 +348,9 @@ def get_filter(net, reshape=True):
 
 
 def sample_sphere(num_samples, ndims):
+    """
+    Generates `num_samples` points uniformly from `ndims`-dimensional unit sphere
+    """
     vec = np.random.randn(ndims, num_samples)
     vec /= np.linalg.norm(vec, axis=0)
     return vec
@@ -353,6 +427,7 @@ def neuron_description(experiment='000'):
 
 @experiment_args
 def compare_sta_mei(chosen_neurons=range(103), experiment='000'):
+    # Load generated meis and stas
     stas = np.load(f'output/03_sta/{experiment}_sta.npy')[chosen_neurons]
     sta_activations = np.load(
         f'output/03_sta/{experiment}_sta_activations.npy')[chosen_neurons]
@@ -365,16 +440,14 @@ def compare_sta_mei(chosen_neurons=range(103), experiment='000'):
     meis_n = np.load(f'output/04_mei/{experiment}_mei_n.npy')[chosen_neurons]
     mei_activations_n = np.load(
         f'output/04_mei/{experiment}_mei_activations_n.npy')[chosen_neurons]
-    print(np.shape(meis_n))
-    print(np.shape(stas_n))
+
+    # Mask normalized stimuli
     stas_n = np.vstack([mask_stimuli(sta[np.newaxis, :], experiment, neuron)
                         for neuron, sta in zip(chosen_neurons, stas_n)])
     meis_n = np.vstack([mask_stimuli(mei[np.newaxis, :], experiment, neuron)
                         for neuron, mei in zip(chosen_neurons, meis_n)])
-    print(np.shape(meis_n))
-    print(np.shape(stas_n))
-    print('-'*30)
 
+    # Plot unnormalized comparison of linear RFs and MEIs
     col_names = [str(n) for n in chosen_neurons]
     row_names = ['Linear RF', 'MEI']
     titles = [f'{act:.2f}' for act in sta_activations]
@@ -382,12 +455,14 @@ def compare_sta_mei(chosen_neurons=range(103), experiment='000'):
     plot_grid(np.concatenate([stas, meis]), titles, save_path=f'output/05_compare_mei_sta/{experiment}_comparison.png',
               show=False, row_names=row_names, ignore_assertion=True, col_names=col_names, common_scale=False)
 
+    # Plot normalized masked comparison of linear RFs and MEIs
     row_names = ['Linear RF\nnorm', 'MEI\nnorm']
     titles = [f'{act:.2f}' for act in sta_activations_n]
     titles += [f'{act:.2f}' for act in mei_activations_n]
     plot_grid(np.concatenate([stas_n, meis_n]), titles,
               save_path=f'output/05_compare_mei_sta/{experiment}_n_comparison.png', show=False, row_names=row_names, ignore_assertion=True, col_names=col_names)
 
+    # Computes non-linearity score or neuron and save report as latex table
     acts_df = pd.DataFrame(zip(sta_activations, sta_activations_n, mei_activations, mei_activations_n), columns=[
                            'STA activation', 'STA norm activation', 'MEI activation', 'MEI norm activation'])
     acts_df['score'] = acts_df['MEI norm activation'] - \
@@ -455,8 +530,8 @@ def generate_equivariance(
         f'output/06_invariances/{experiment}_neuron{neuron}_activations.npy',
         activations
     )
+    # Save generator model
     generator = generator_net.extract_generator()
-    print(generator.networks[-1].layers[-1].normalize_output)
     generator.save_model(
         f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
 
@@ -481,22 +556,25 @@ def plot_grid(
         assert num_images == len(titles)
     min_pixel = np.nanmin(images) if common_scale else None
     max_pixel = np.nanmax(images) if common_scale else None
-    print(min_pixel, max_pixel)
+
     num_rows = math.ceil(num_images/num_cols)
     fig, ax1 = plt.subplots(
         num_rows, num_cols, figsize=(3*num_cols, 3.05*num_rows))
 
     for i, (img, tit) in enumerate(zip(images, titles)):
-        print(f'{i}: {np.mean(img)}, {np.std(img)}')
         if not ignore_assertion:
+            # Assert zero mean and unit variance of plotted images 
             np.testing.assert_almost_equal(
                 np.mean(img), 0.0, decimal=2, err_msg='Mean is not 0')
             np.testing.assert_almost_equal(
                 np.std(img), 1.0, decimal=2, err_msg='Standard deviation is not 1')
         imgp = ax1[i // num_cols, i %
                    num_cols].imshow(img, cmap=cmap, vmin=min_pixel, vmax=max_pixel)
+        # Remove scale numbers form axis
         ax1[i // num_cols, i % num_cols].set_xticklabels([], [])
         ax1[i // num_cols, i % num_cols].set_yticklabels([], [])
+        
+        # Highlight selected images with bold frame
         if highlight is not None and i in highlight:
             [sp.set_linewidth(5) for _, sp in ax1[i //
                                                   num_cols, i % num_cols].spines.items()]
