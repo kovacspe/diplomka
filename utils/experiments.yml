@@ -73,7 +73,7 @@
 
 003dog:
   code: 003
-  net: 'models/best_convdog.pkl'
+  net: 'models/best_dog.pkl'
   dataset: 'antolik1'
   mask_threshold: 0.005
   noise_len: 128
@@ -640,7 +640,7 @@ comp000:
     - 'Hybrid'
   percentage:
     - 0.95
-    - 0.95
+    - null
     - 0.95
   num_per_net: 6
 
