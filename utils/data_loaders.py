@@ -7,6 +7,9 @@ import math
 from matplotlib import pyplot as plt
 
 class Dataset:
+    """
+    Dataset structure for dataset from rotation invariant network
+    """
     def __init__(self,
                  images_train,
                  responses_train,

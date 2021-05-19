@@ -3,6 +3,9 @@ from NDN3.NDN import NDN
 from utils.data_loaders import get_data_loader
 
 def experiment_args(func):
+    """
+    Decorator for experiment command line utilities. From experiment ID will retrieve experiment arguments form 'utils/experiments.yml'
+    """
     def wrapper(*args,**kwargs):
         # Load configuration if experiment is specified
         update_params = {}
