@@ -68,7 +68,7 @@ def generate_masks(net, dataset, mask_threshold, num_images=50, experiment='000'
         mask = np.load(f'output/02_masks/{experiment}_masks.npy')
         hard_mask = np.vectorize(mask_pixel)(mask)
     else:
-        mask = compute_mask(net, x, np.linspace(-1.6, 1.6, 10))[:16]
+        mask = compute_mask(net, x, np.linspace(-1.6, 1.6, 10))
 
         # Save masks to npy
         np.save(f'output/02_masks/{experiment}_masks.npy', mask)

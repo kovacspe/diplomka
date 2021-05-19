@@ -278,7 +278,6 @@ if __name__ == '__main__':
     # Command line interface
     fire.Fire({
         'generate_invariance': generate_invariance,
-        'analyze_mei': compare_sta_mei,
         'sta': generate_sta,
         'mei': generate_mei,
         'mask': generate_masks,

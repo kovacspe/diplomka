@@ -21,7 +21,8 @@ def plot_grid(
     row_names=None,
     col_names=None,
     ignore_assertion=False,
-    common_scale=True
+    common_scale=True,
+    scale_first_separately=False
 ):
     """
     Function for generating plot with stimuli
@@ -36,6 +37,7 @@ def plot_grid(
             col_names (List[str]):  List of column titles
             ignore_assertion (bool): If true assert, zero mean and unit varaince for each image
             common_scale (bool): If true images have common scale and colorbar will be placed at the bottom
+            scale_first_separately (bool): If True scale first column with different scale than rest of the figure
     """
     num_images = len(images)
     if titles is None:
@@ -44,6 +46,9 @@ def plot_grid(
         assert num_images == len(titles)
     min_pixel = np.nanmin(images) if common_scale else None
     max_pixel = np.nanmax(images) if common_scale else None
+    if scale_first_separately:
+        min_pixel_first = np.nanmin(images[range(0,num_images,num_cols)])
+        max_pixel_first = np.nanmax(images[range(0,num_images,num_cols)])
 
     num_rows = math.ceil(num_images/num_cols)
     fig, ax1 = plt.subplots(
@@ -56,7 +61,11 @@ def plot_grid(
                 np.mean(img), 0.0, decimal=2, err_msg='Mean is not 0')
             np.testing.assert_almost_equal(
                 np.std(img), 1.0, decimal=2, err_msg='Standard deviation is not 1')
-        imgp = ax1[i // num_cols, i %
+        if scale_first_separately and i%num_cols==0:
+            imgp_f = ax1[i // num_cols, i %
+                   num_cols].imshow(img, cmap=cmap, vmin=min_pixel_first, vmax=max_pixel_first)
+        else:
+            imgp = ax1[i // num_cols, i %
                    num_cols].imshow(img, cmap=cmap, vmin=min_pixel, vmax=max_pixel)
         # Remove scale numbers form axis
         ax1[i // num_cols, i % num_cols].set_xticklabels([], [])
@@ -97,6 +106,13 @@ def plot_grid(
     )
 
     # Colorbar
+    if scale_first_separately:
+        cb_ax1 = fig.add_axes([left, 0.03 if num_rows >
+                              4 else 0.06, 0.85/num_cols, max(0.02, 0.002*(num_rows))])
+        cbar1 = fig.colorbar(imgp, cax=cb_ax1, orientation='horizontal')
+        left+=0.85/num_cols
+        for t in cbar1.ax.get_xticklabels():
+            t.set_fontsize(20)
     if common_scale:
         cb_ax = fig.add_axes([left + 0.05, 0.03 if num_rows >
                               4 else 0.06, 0.9-left, max(0.02, 0.002*(num_rows))])
@@ -275,7 +291,7 @@ def plot_all_from_generator(chosen_neurons, experiment='000', mask=False, includ
 
 
 @experiment_args
-def plot_invariance_summary(net, chosen_neurons, perc, experiment='000', mask=False, max_error=0.05, num_samples=8):
+def plot_invariance_summary(net, chosen_neurons, perc, experiment='000', mask=False, max_error=0.05, num_samples=8,scale_first_separately=False):
     """
     Generate invariances from generator for all `chosen_neurons` and plot them in common summary with MEIs
         Parameters:
@@ -297,7 +313,7 @@ def plot_invariance_summary(net, chosen_neurons, perc, experiment='000', mask=Fa
         generator = NDN.load_model(
             f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
         noise_shape = generator.input_sizes[0][1]
-        noise_input = np.random.uniform(-2, 2, size=(10000, noise_shape))
+        noise_input = np.random.uniform(-2, 2, size=(1000, noise_shape))
         invariances = generator.generate_prediction(noise_input)
         images, activations = choose_representant(num_samples, net, neuron, invariances,
                                                   activation_lowerbound=(
@@ -311,7 +327,7 @@ def plot_invariance_summary(net, chosen_neurons, perc, experiment='000', mask=Fa
         titles += [f'{act/activations[0]:.2f}' for act in activations]
     all_images = np.reshape(np.vstack(all_images), (-1, 31, 31))
     plot_grid(all_images, titles, num_cols=num_samples,
-              save_path=f'output/08_generators/{experiment}_invariance_overview.png', show=False, row_names=row_names)
+              save_path=f'output/08_generators/{experiment}_invariance_overview.png', show=False, row_names=row_names,scale_first_separately=scale_first_separately)
 
 
 @experiment_args
