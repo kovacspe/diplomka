@@ -197,12 +197,12 @@ def train_MEI(net: NDN, input_data, output_data, data_filters, opt_args, fit_var
     Optimization of weights in variable layer to maximize neurons output
         Parameters:
             net (NDN): A trained neural network with variable layer
-            input_data (np.array):
-            output_data (np.array):
-            data_filters (np.array):
-            opt_args (dict):
-            fit_vars (dict):
-            var_layer (NDN.Layer):
+            input_data (np.array): input data
+            output_data (np.array): output data
+            data_filters (np.array): data_filters will be passed to NDN.train
+            opt_args (dict): optimizer arguments
+            fit_vars (dict): fit variables will be passed to NDN.train
+            var_layer (NDN.Layer): Variable layer
 
     """
     opt_params = net.optimizer_defaults(
@@ -266,17 +266,14 @@ def find_MEI(net, optimize_neuron, epochs=400):
     Optimization of weights in variable layer to maximize neurons output
         Parameters:
             net (NDN): A trained neural network with variable layer
-            optimize_neuron (int):
-            epochs (int):
-
-
+            optimize_neuron (int): Neuron id
+            epochs (int): Number of epochs for training
     """
     # Find Variable layer
     var_layer_net, var_layer_layer = find_var_layer(net)
 
     # Activate variable layer
     net.network_list[var_layer_net]['as_var'] = True
-    #net.networks[var_layer_net].layers[var_layer_layer].set_regularization('l2', 0.01)
 
     # Change loss function
     original_noise_dist = net.noise_dist
@@ -338,6 +335,14 @@ def find_MEI(net, optimize_neuron, epochs=400):
 
 
 def get_filter(net, reshape=True):
+    """
+    Extracts image from Variable layes weights
+        Parameters:
+            net (NDN): A trained neural network with variable layer
+            reshape (bool): If true reshape weights to image sizes
+        Returns:
+            filter (np.array): Filter from weights of variable layer.
+    """
     var_layer_net, var_layer_layer = find_var_layer(net)
     _, x, y = net.input_sizes[0]
     raw_filter = net.networks[var_layer_net].layers[var_layer_layer].weights
@@ -357,17 +362,29 @@ def sample_sphere(num_samples, ndims):
 
 
 def choose_representant(num_representative_samples, net, neuron, stimuli, activation_lowerbound=-np.inf, activation_upperbound=np.inf):
+    """
+     Optimization of weights in variable layer to maximize neurons output
+        Parameters:
+            num_representative_samples (int): Number of stimuli to chose
+            net (NDN): A trained neural network with variable layer
+            neuron (int): neuron id
+            stimuli (np.array): Array of generated stimuli from which to choose
+            data_filters (np.array): data_filters will be passed to NDN.train
+            activation_lowerbound (float): 
+            activation_upperbound (float): 
+        Returns:
+            chosen_stimuli (np.array): 
+    """
     # Filter stimuli
     activations = net.generate_prediction(stimuli)[:, neuron]
-    print(f'Genrated stimuli:{len(stimuli)}')
     stimuli = stimuli[
         (activations <= activation_upperbound) & (
             activations >= activation_lowerbound)
     ]
-    print(f'Filtred stimuli:{len(stimuli)}')
     activations = activations[(activations <= activation_upperbound) & (
         activations >= activation_lowerbound)]
 
+    # Cluster stimuli
     try:
         kmeans = AgglomerativeClustering(
             n_clusters=num_representative_samples, affinity='cosine', linkage='complete').fit(stimuli)
@@ -379,24 +396,27 @@ def choose_representant(num_representative_samples, net, neuron, stimuli, activa
         images = np.vstack(images)
         acts = np.array(acts)
     except ValueError:
+        # If clustering failed choose first `num_representative_samples` samples
         print(
             f'Clustering failed ... taking first {num_representative_samples} images')
         images = stimuli[:num_representative_samples, :]
         acts = activations[:num_representative_samples]
-    print(np.shape(images))
-    print(np.shape(acts))
+
     return images, acts
 
 
 @experiment_args
 def correlations(net, dataset, experiment='000'):
+    """
+    Compute correlation of each neuron and summary correlation both on test and train set.
+        Parameters:
+            net (NDN): A trained neural network with variable layer
+            dataset (DataLoader): dataset for evaluation
+    """
     train_x, train_y = dataset.train()
     test_x, test_y = dataset.val()
     train_predictions = net.generate_prediction(train_x)
     test_predictions = net.generate_prediction(test_x)
-
-    print('----------')
-    print(test_predictions[:84])
     train_correlations = [stats.pearsonr(train_predictions[:, i], train_y[:, i])[
         0] for i in range(np.shape(train_y)[1])]
     test_correlations = [stats.pearsonr(test_predictions[:, i], test_y[:, i])[
@@ -411,6 +431,11 @@ def correlations(net, dataset, experiment='000'):
 
 @experiment_args
 def neuron_description(experiment='000'):
+    """
+    Generate LaTeX table with comparison of STA correlation and net correlation
+        Parameters:
+            experiment (str): experiment ID
+    """
     sta_corrs = np.load(f'output/03_sta/{experiment}_sta_correlations.npy')
     # np.load(f'output/07_correlations/{experiment}_train_correlations.npy',train_correlations)
     net_corrs = np.load(
@@ -427,6 +452,13 @@ def neuron_description(experiment='000'):
 
 @experiment_args
 def compare_sta_mei(chosen_neurons=range(103), experiment='000'):
+    """
+    Generate plot comparing MEI and linear RFs computed by STA. Both in normalized and unnormalized version. 
+    Comparison of activation is saved as LaTeX table
+        Parameters:
+            chosen_neurons (iterable): Neurons to be on a plot
+            experiment (str): experiment ID
+    """
     # Load generated meis and stas
     stas = np.load(f'output/03_sta/{experiment}_sta.npy')[chosen_neurons]
     sta_activations = np.load(
@@ -473,14 +505,14 @@ def compare_sta_mei(chosen_neurons=range(103), experiment='000'):
 
 
 @experiment_args
-def generate_equivariance(
+def generate_invariance(
     neuron: int,
     noise_len: int,
     perc: float,
     net: NDN,
-    num_equivariance_clusters: int,
-    eq_train_set_len=10000,
-    eq_epochs=5,
+    num_representants: int,
+    invariance_train_set_len=10000,
+    invariance_epochs=5,
     is_aegan=False,
     loss='gaussian',
     mask=False,
@@ -488,6 +520,25 @@ def generate_equivariance(
     experiment='000',
     norm='post'
 ):
+    """
+    Generate plot comparing MEI and linear RFs computed by STA. Both in normalized and unnormalized version. 
+    Comparison of activation is saved as LaTeX table
+        Parameters:
+            neuron (int): neuron id
+            noise_len (int): size of latent space from which generator will sample
+            perc (int): Percentage of MEI activation, which will be set as target activation for generator
+            net (NDN): Trained neural network
+            num_representants (int): number of representants chosen from generated stimuli
+            invariance_train_set_len (int): Length of training set
+            invariance_epochs (int): Number of epochs for invariance training
+            is_aegan (bool): If true, a decoder is added to a generator for regularization purposes
+            loss (str): Loss. Same as in NDN ('gaussian','max','poisson','bernoulli')
+            mask (bool): Apply mask during learning
+            gen_type (str): Generator type. One of : 'lin', 'lin_tanh', 'conv', 'hybrid'
+            experiment (str): Experiment ID
+            norm (str): Normalization regime one of `online`(normalize also during training) and `post`(normalizing only on evaluation)
+            chosen_neurons (iterable): Neurons to be on a plot
+    """
     _, input_size_x, input_size_y = net.input_sizes[0]
     # Load precomputed MEI
     max_activation = np.load(
@@ -510,16 +561,17 @@ def generate_equivariance(
     )
     generator_net.train_generator_on_neuron(
         neuron,
-        data_len=eq_train_set_len,
+        data_len=invariance_train_set_len,
         max_activation=max_activation,
         perc=perc,
-        epochs=eq_epochs,
+        epochs=invariance_epochs,
         train_log=train_log
     )
     image_out = generator_net.generate_stimulus(num_samples=10000)
 
+    # Choose representants with maximal 5 percent deviation from target activation 
     x, activations = choose_representant(
-        num_equivariance_clusters, net_copy, neuron, image_out, 0.05, 0.05)
+        num_representants, net_copy, neuron, image_out, 0.05, 0.05)
 
     # Plot receptive fields
     np.save(
@@ -549,6 +601,20 @@ def plot_grid(
     ignore_assertion=False,
     common_scale=True
 ):
+    """
+    Function for generating plot with stimuli
+        Parameters:
+            images (np.array): neuron id
+            titles (List[str]): List of titles for each stimuli
+            num_cols (int): Number of columns
+            save_path (str): Path to save figure
+            cmap (int): colormap
+            highlight (iterable): List of image indexes to be highlighted (with bold frame)
+            row_names (List[str]):  List of row titles
+            col_names (List[str]):  List of column titles
+            ignore_assertion (bool): If true assert, zero mean and unit varaince for each image
+            common_scale (bool): If true images have common scale and colorbar will be placed at the bottom
+    """
     num_images = len(images)
     if titles is None:
         titles = ['']*num_images
@@ -578,6 +644,8 @@ def plot_grid(
         if highlight is not None and i in highlight:
             [sp.set_linewidth(5) for _, sp in ax1[i //
                                                   num_cols, i % num_cols].spines.items()]
+
+        # Titles
         if row_names is not None:
             ax1[i // num_cols, 0].annotate(row_names[i // num_cols], xy=(0, 0.5), xytext=(-ax1[i // num_cols, 0].yaxis.labelpad - 5, 0),
                                            xycoords=ax1[i // num_cols,
@@ -592,6 +660,7 @@ def plot_grid(
     for i in range(num_images, num_cols*num_rows):
         fig.delaxes(ax1[i // num_cols, i % num_cols])
 
+    # Adjust axis
     bottom = (0.05 if num_rows > 4 else 0.1) + \
         num_rows*0.002 if common_scale else 0.01
     top = 0.8 if col_names else 0.95
@@ -605,6 +674,7 @@ def plot_grid(
         hspace=0.2
     )
 
+    # Colorbar
     if common_scale:
         cb_ax = fig.add_axes([left + 0.05, 0.03 if num_rows >
                               4 else 0.06, 0.9-left, max(0.02, 0.002*(num_rows))])
@@ -619,6 +689,15 @@ def plot_grid(
 
 
 def mask_stimuli(stimuli, experiment, neuron):
+    """
+    Apply mask on stimuli
+        Parameters:
+            stimuli (np.array):
+            experiment (str): experiment ID
+            neuron (int): neuron ID
+        Returns:
+            masked_stimuli
+    """
     neuron_mask = np.load(
         f'output/02_masks/{experiment}_hardmasks.npy')[neuron]
     neuron_mask = np.where(neuron_mask == 0, np.nan, neuron_mask)
@@ -628,14 +707,24 @@ def mask_stimuli(stimuli, experiment, neuron):
 
 @experiment_args
 def generate_sta(dataset, net, experiment='000', chosen_neurons=None):
+    """
+    Generate linear RFs by STA
+        Parameters:
+            dataset (DataLoader): dataset 
+            net (NDN): trained Neural network
+            experiment (str): experiment ID
+            chosen_neurons (itearble): neuron IDs
+    """
     x, y = dataset.train()
     x = np.matrix(x)
     y = np.matrix(y)
     test_x, test_y = dataset.val()
 
+    # Run STA
     sta = STA_LR(x, y, 10000).transpose()
     sta_normalized = norm_samples(sta)
 
+    # Predict activations on both unnormalized and normalized RFs
     activations = net.generate_prediction(sta)
     sta_activations = [activations[i, i] for i in range(len(activations))]
 
@@ -643,10 +732,12 @@ def generate_sta(dataset, net, experiment='000', chosen_neurons=None):
     sta_activations_n = [activations_n[i, i]
                          for i in range(len(activations_n))]
 
+    # Compute correlation of linear model
     sta_predictions = np.array(test_x*sta.T)
     sta_correlations = [stats.pearsonr(sta_predictions[:, i], test_y[:, i])[
         0] for i in range(np.shape(y)[1])]
 
+    # Save results
     _, input_size_x, input_size_y = net.input_sizes[0]
     sta = np.array(sta).reshape((-1, input_size_x, input_size_y))
     sta_normalized = np.array(sta_normalized).reshape(
@@ -666,6 +757,13 @@ def generate_sta(dataset, net, experiment='000', chosen_neurons=None):
 
 @experiment_args
 def generate_mei(net, dataset, experiment='000'):
+    """
+    Generate MEI for every neuron
+        Parameters:
+            dataset (DataLoader): dataset 
+            net (NDN): trained Neural network
+            experiment (str): experiment ID
+    """
     _, y = dataset.train()
     num_neurons = np.shape(y)[1]
     net2 = copy.deepcopy(net)
@@ -698,6 +796,16 @@ def generate_mei(net, dataset, experiment='000'):
 
 @experiment_args
 def generate_masks(net, dataset, mask_threshold, num_images=50, experiment='000', skip_computing=False):
+    """
+    Generate masks for every neuron and plot them
+        Parameters:
+            dataset (DataLoader): dataset 
+            net (NDN): trained Neural network
+            mask_threshold (float): Threshold of computed deviation for binary mask
+            num_images (int): number of samples from which masks will be computed
+            experiment (str): experiment ID
+            skip_computing (bool): If true skip generating masks and instead of that load them from a file
+    """
     x, y = dataset.train()
     x = x[:num_images]
 
@@ -725,20 +833,32 @@ def generate_masks(net, dataset, mask_threshold, num_images=50, experiment='000'
 
 @experiment_args
 def plot_interpolations(net, neuron, experiment='000', mask=False, num_interpolations=3, num_samples=6):
+    """
+    Generate invariances from diameters of unit sphere in latent space
+        Parameters:
+            net (NDN): trained Neural network
+            neuron (int): neuron ID
+            experiment (str): experiment ID
+            mask (bool): If true stimuli will be masked on a plot
+            num_interpolations (int): number of diameters
+            num_samples (int): number of sampled points from diameter
+            
+    """
     inputs = []
     generator = NDN.load_model(
         f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
     noise_shape = generator.input_sizes[0][1]
     mei_act = np.load(
         f'output/04_mei/{experiment}_mei_activations_n.npy')[neuron]
+
+    # Generate points on sphere
     for i in range(num_interpolations):
         first_point = np.random.normal(0.0, 1.0, noise_shape)
         first_point /= np.linalg.norm(first_point, axis=0)
-        second_point = np.random.normal(0.0, 1.0, noise_shape)
-        #second_point /=np.linalg.norm(second_point,axis=0)
-        print(np.linspace(first_point, -first_point, num_samples).shape)
         inputs.append(np.linspace(first_point, -first_point, num_samples))
     noise_samples = np.vstack(inputs)
+
+    # Predict
     invariances = generator.generate_prediction(noise_samples)
     mask_text = ''
     if mask:
@@ -753,6 +873,15 @@ def plot_interpolations(net, neuron, experiment='000', mask=False, num_interpola
 
 @experiment_args
 def plot_sphere_samples(net, neuron, experiment='000', mask=False, num_samples=18):
+    """
+    Generate invariances from points in latent space uniformly sampled from unit sphere
+        Parameters:
+            dataset (DataLoader): dataset 
+            net (NDN): trained Neural network
+            experiment (str): experiment ID
+            mask (bool): If true stimuli will be masked on a plot
+            num_samples (int): number of samples from unit sphere in latent space
+    """
     inputs = []
     generator = NDN.load_model(
         f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
@@ -774,22 +903,35 @@ def plot_sphere_samples(net, neuron, experiment='000', mask=False, num_samples=1
 
 
 @experiment_args
-def plot_from_generator(net, neuron, num_equivariance_clusters, experiment='000', include_mei=False, mask=False, max_error=0.05, perc=0.95, noise_len=128):
+def plot_from_generator(net, neuron, num_representants, experiment='000', include_mei=False, mask=False, max_error=0.05, perc=0.95):
+    """
+    Generate and plot invariances from generator
+        Parameters:
+            net (NDN): trained Neural network
+            neuron (int): neuron ID
+            num_representants (int): number of represntats to plot
+            experiment (str): experiment ID
+            include_mei (bool): If true MEI will be placed as last image in the figure
+            mask (bool): If true stimuli will be masked on a plot
+            max_error (float): Max deviation from target activation
+            perc (float): Target percentage of MEI activation
+    """
     inputs = []
     generator = NDN.load_model(
         f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
-    noise_shape = generator.input_sizes[0][1]
+    _, input_size_x, input_size_y = net.input_sizes[0]
+    noise_shape = input_size_x
     mei_act = np.load(
         f'output/04_mei/{experiment}_mei_activations_n.npy')[neuron]
-    noise_input = np.random.uniform(-2, 2, size=(10000, noise_len))
+    noise_input = np.random.uniform(-2, 2, size=(10000, noise_shape))
     invariances = generator.generate_prediction(noise_input)
 
-    images, activations = choose_representant(num_equivariance_clusters, net, neuron, invariances,
+    images, activations = choose_representant(num_representants, net, neuron, invariances,
                                               activation_lowerbound=(
                                                   perc-max_error)*mei_act,
                                               activation_upperbound=(perc+max_error)*mei_act)
 
-    _, input_size_x, input_size_y = net.input_sizes[0]
+    
     np.save(
         f'output/06_invariances/{experiment}_neuron{neuron}_equivariance.npy',
         np.reshape(images, (-1, input_size_x, input_size_y))
@@ -798,12 +940,21 @@ def plot_from_generator(net, neuron, num_equivariance_clusters, experiment='000'
         f'output/06_invariances/{experiment}_neuron{neuron}_activations.npy',
         activations
     )
-    plot_equivariances(experiment=experiment, neuron=neuron,
+    plot_invariances(experiment=experiment, neuron=neuron,
                        include_mei=include_mei, mask=mask)
 
 
 @experiment_args
-def plot_equivariances(net, neuron, experiment='000', mask=False, include_mei=False):
+def plot_invariances(net, neuron, experiment='000', mask=False, include_mei=False):
+    """
+    Generate and plot invariances from generator
+        Parameters:
+            net (NDN): trained Neural network
+            neuron (int): neuron ID
+            experiment (str): experiment ID
+            mask (bool): If true stimuli will be masked on a plot
+            include_mei (bool): If true MEI will be placed as last image in the figure
+    """
     invariances = np.load(
         f'output/06_invariances/{experiment}_neuron{neuron}_equivariance.npy')
     activations = np.load(
@@ -830,6 +981,9 @@ def plot_equivariances(net, neuron, experiment='000', mask=False, include_mei=Fa
 
 
 def basic_setup(experiment='000'):
+    """
+    Generate STA, MEI and mask for `experiment`
+    """
     print(f'running experiment {experiment}')
     generate_sta(experiment=experiment)
     generate_mei(experiment=experiment)
@@ -838,6 +992,15 @@ def basic_setup(experiment='000'):
 
 @experiment_args
 def plot_all_from_generator(chosen_neurons, experiment='000', mask=False, include_mei=False, max_error=0.05):
+    """
+    Generate and plot invariances from generator for all `chosen_neurons`. Each neuron is plotted in a single plot.
+    Note that all unfilled arguments for plot_from_generator must be in experiment definition
+        Parameters:
+            chosen_neurons (List[int]): neuron IDs
+            experiment (str): experiment ID
+            include_mei (bool): If true MEI will be placed as last image in the figure
+            max_error (float): Max deviation from target activation
+    """
     for neuron in chosen_neurons:
         plot_from_generator(neuron=neuron, experiment=experiment,
                             include_mei=include_mei, mask=mask, max_error=max_error)
@@ -845,6 +1008,17 @@ def plot_all_from_generator(chosen_neurons, experiment='000', mask=False, includ
 
 @experiment_args
 def plot_invariance_summary(net, chosen_neurons, perc, experiment='000', mask=False, max_error=0.05, num_samples=8):
+    """
+    Generate invariances from generator for all `chosen_neurons` and plot them in common summary with MEIs
+        Parameters:
+            net (NDN): trained Neural network
+            chosen_neurons (List[int]): neuron IDs
+            perc (float): Target percentage of MEI activation
+            experiment (str): experiment ID
+            mask (bool): If true stimuli will be masked on a plot
+            max_error (float): Max deviation from target activation
+            num_samples (int): number of samples for each neuron
+    """
     row_names = [str(n) for n in chosen_neurons]
     mei = np.load(f'output/04_mei/{experiment}_mei_n.npy')
     mei_act = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')
@@ -873,7 +1047,20 @@ def plot_invariance_summary(net, chosen_neurons, perc, experiment='000', mask=Fa
 
 
 @experiment_args
-def compare_generators(neuron, net, experiment='000', generator_experiment=[], generator_names=[], percentage=[], num_per_net=6, mask=False, max_error=0.05, perc=0.95):
+def compare_generators(neuron, net, experiment='000', generator_experiment=[], generator_names=[], percentage=[], num_per_net=6, mask=False, max_error=0.05):
+    """
+    Compare generators from different experiments on same neuron and plot results. Experiments must share net and dataset parameters
+        Parameters:
+            neuron (int): neuron ID
+            net (NDN): trained Neural network
+            experiment (str): experiment ID
+            generator_experiment (List[str]): List of experiment IDs to compare
+            generator_names (List[str]): List of generator names. Will be displayed on a plot
+            percentage (List[float]): list of target percentage of MEI for each experiment
+            num_per_net (int): Number of representants per experiment
+            mask (bool): If true stimuli will be masked on a plot
+            max_error (float): Max deviation from target activation
+    """
     images = []
     titles = []
     base_exp = generator_experiment[0]
@@ -916,15 +1103,16 @@ def compare_generators(neuron, net, experiment='000', generator_experiment=[], g
 
 
 if __name__ == '__main__':
+    # Command line interface
     fire.Fire({
-        'generate_equivariance': generate_equivariance,
+        'generate_invariance': generate_invariance,
         'analyze_mei': compare_sta_mei,
         'sta': generate_sta,
         'mei': generate_mei,
         'mask': generate_masks,
         'corr': correlations,
         'neuron_desc': neuron_description,
-        'plot_equivariances': plot_equivariances,
+        'plot_invariances': plot_invariances,
         'plot_interpolations': plot_interpolations,
         'plot_from_generator': plot_from_generator,
         'plot_all_from_generator': plot_all_from_generator,

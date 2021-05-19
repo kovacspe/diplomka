@@ -4,10 +4,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'lin'
   norm: 'post'
   chosen_neurons: 
@@ -33,10 +33,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'lin'
   norm: 'online'
   chosen_neurons: 
@@ -55,10 +55,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.005
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'conv'
   norm: 'post'
   chosen_neurons: 
@@ -77,10 +77,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.005
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'conv'
   norm: 'online'
   chosen_neurons: 
@@ -99,10 +99,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.005
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'lin_tanh'
   norm: 'online'
   chosen_neurons: 
@@ -126,10 +126,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.005
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'conv'
   norm: 'online'
   chosen_neurons: 
@@ -153,10 +153,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'hybrid'
   norm: 'post'
   chosen_neurons: 
@@ -175,10 +175,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'hybrid'
   norm: 'online'
   chosen_neurons: 
@@ -197,10 +197,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'lin_tanh'
   norm: 'online'
   chosen_neurons:
@@ -227,10 +227,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'deepconv'
   norm: 'online'
   chosen_neurons: 
@@ -252,10 +252,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'lin'
   norm: 'post'
   is_aegan: True
@@ -275,10 +275,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'lin'
   norm: 'online'
   is_aegan: True
@@ -298,10 +298,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'conv'
   norm: 'post'
   is_aegan: True
@@ -321,10 +321,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'conv'
   norm: 'online'
   is_aegan: True
@@ -345,10 +345,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'hybrid'
   norm: 'post'
   is_aegan: True
@@ -368,10 +368,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'hybrid'
   norm: 'online'
   is_aegan: True
@@ -392,10 +392,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 1.1
-  eq_epochs: 20
+  invariance_epochs: 20
   gen_type: 'lin_tanh'
   norm: 'online'
   loss: 'gaussian'
@@ -422,10 +422,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 1.25
-  eq_epochs: 20
+  invariance_epochs: 20
   gen_type: 'lin_tanh'
   norm: 'online'
   loss: 'gaussian'
@@ -452,10 +452,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 2
-  eq_epochs: 20
+  invariance_epochs: 20
   gen_type: 'lin_tanh'
   norm: 'online'
   loss: 'gaussian'
@@ -482,10 +482,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.8
-  eq_epochs: 20
+  invariance_epochs: 20
   gen_type: 'lin_tanh'
   norm: 'online'
   loss: 'gaussian'
@@ -512,10 +512,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.5
-  eq_epochs: 20
+  invariance_epochs: 20
   gen_type: 'lin_tanh'
   norm: 'online'
   loss: 'gaussian'
@@ -542,10 +542,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: null
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'lin_tanh'
   norm: 'online'
   loss: 'max'
@@ -572,10 +572,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 10
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'lin_tanh'
   norm: 'online'
   loss: 'gaussian'
@@ -602,10 +602,10 @@
   dataset: 'antolik1'
   mask_threshold: 0.0001
   noise_len: 128
-  num_equivariance_clusters: 24
-  eq_train_set_len: 1000000
+  num_representants: 24
+  invariance_train_set_len: 1000000
   perc: 0.95
-  eq_epochs: 25
+  invariance_epochs: 25
   gen_type: 'lin_tanh'
   norm: 'online'
   loss: 'gaussian'
