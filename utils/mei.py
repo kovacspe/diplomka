@@ -293,4 +293,4 @@ def generate_mei(net, dataset, experiment='000'):
     np.save(f'output/04_mei/{experiment}_mei_activations_n.npy', activations_n)
 
     plot_grid(meis_n, titles, num_cols=8,
-              save_path=f'output/04_mei/{experiment}_mei.png', show=True)
+              save_path=f'output/04_mei/{experiment}_mei.png')

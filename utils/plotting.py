@@ -321,13 +321,14 @@ def plot_invariance_summary(net, chosen_neurons, perc, experiment='000', mask=Fa
                                                   activation_upperbound=(perc+max_error) *
                                                   mei_act[neuron] if perc is not None else np.inf
                                                   )
-        images[0] = np.reshape(mei[neuron], (1, -1))
+        #print(mask_stimuli)
+        images[0] = np.reshape(mask_stimuli(mei[[neuron]],experiment,neuron), (1, -1))
         all_images.append(images)
         activations[0] = mei_act[neuron]
         titles += [f'{act/activations[0]:.2f}' for act in activations]
     all_images = np.reshape(np.vstack(all_images), (-1, 31, 31))
     plot_grid(all_images, titles, num_cols=num_samples,
-              save_path=f'output/08_generators/{experiment}_invariance_overview.png', show=False, row_names=row_names,scale_first_separately=scale_first_separately)
+              save_path=f'output/08_generators/{experiment}_invariance_overview.png', show=False, row_names=row_names,scale_first_separately=scale_first_separately,ignore_assertion=True)
 
 
 @experiment_args

@@ -53,7 +53,7 @@
   code: 002
   net: 'models/best_dog.pkl'
   dataset: 'antolik1'
-  mask_threshold: 0.005
+  mask_threshold: 0.0001
   noise_len: 128
   num_representants: 24
   invariance_train_set_len: 1000000
@@ -75,7 +75,7 @@
   code: 003
   net: 'models/best_dog.pkl'
   dataset: 'antolik1'
-  mask_threshold: 0.005
+  mask_threshold: 0.0001
   noise_len: 128
   num_representants: 24
   invariance_train_set_len: 1000000
@@ -626,7 +626,7 @@
     - 41
     - 69
 
-#######################
+###########Comparing############
 
 comp000:
   net: 'models/best_dog.pkl'
@@ -640,7 +640,7 @@ comp000:
     - 'Hybrid'
   percentage:
     - 0.95
-    - null
+    - 0.95
     - 0.95
   num_per_net: 6
 
