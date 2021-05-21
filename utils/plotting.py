@@ -142,6 +142,7 @@ def plot_interpolations(net, neuron, experiment='000', mask=False, num_interpola
     inputs = []
     generator = NDN.load_model(
         f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
+    size_x, size_y = net.input_sizes[0][1:]
     noise_shape = generator.input_sizes[0][1]
     mei_act = np.load(
         f'output/04_mei/{experiment}_mei_activations_n.npy')[neuron]
@@ -161,7 +162,7 @@ def plot_interpolations(net, neuron, experiment='000', mask=False, num_interpola
         mask_text = '_masked'
     activations = net.generate_prediction(invariances)[:, neuron]
     titles = [f'{act/mei_act:.2f}' for act in activations]
-    invariances = np.reshape(invariances, (-1, 31, 31))
+    invariances = np.reshape(invariances, (-1, size_x, size_y))
     plot_grid(invariances, titles, num_cols=6,
               save_path=f'output/06_invariances/{experiment}_{neuron}_interpolations_plot{mask_text}.png', show=False)
 
@@ -180,8 +181,9 @@ def plot_sphere_samples(net, neuron, experiment='000', mask=False, num_samples=1
     inputs = []
     generator = NDN.load_model(
         f'output/08_generators/{experiment}_neuron{neuron}_generator.pkl')
+    size_x, size_y = net.input_sizes[0][1:]
     noise_shape = generator.input_sizes[0][1]
-    print(noise_shape)
+
     mei_act = np.load(
         f'output/04_mei/{experiment}_mei_activations_n.npy')[neuron]
     noise_samples = sample_sphere(noise_shape, num_samples)
@@ -192,7 +194,7 @@ def plot_sphere_samples(net, neuron, experiment='000', mask=False, num_samples=1
         mask_text = '_masked'
     activations = net.generate_prediction(invariances)[:, neuron]
     titles = [f'{act/mei_act:.2f}' for act in activations]
-    invariances = np.reshape(invariances, (-1, 31, 31))
+    invariances = np.reshape(invariances, (-1, size_x, size_y))
     plot_grid(invariances, titles, num_cols=6,
               save_path=f'output/06_invariances/{experiment}_{neuron}_sphere_plot{mask_text}.png', show=False)
 
@@ -257,13 +259,14 @@ def plot_invariances(net, neuron, experiment='000', mask=False, include_mei=Fals
         f'output/04_mei/{experiment}_mei_activations_n.npy')[neuron]
     print('Mean invariance images activations' + str(np.mean(activations[0])))
     print(f'MEI activation: {mei_act}')
+    size_x, size_y = net.input_sizes[0][1:]
 
     if include_mei:
         mei = np.load(f'output/04_mei/{experiment}_mei_n.npy')[neuron]
         invariances = np.vstack(
             [np.reshape(invariances, (-1, np.shape(mei)[1])), mei])
     mask_text = ''
-    invariances = np.reshape(invariances, (-1, 31, 31))
+    invariances = np.reshape(invariances, (-1, size_x, size_y))
 
     if mask:
         invariances = mask_stimuli(invariances, experiment, neuron)
@@ -306,6 +309,7 @@ def plot_invariance_summary(net, chosen_neurons, perc, experiment='000', mask=Fa
     row_names = [str(n) for n in chosen_neurons]
     mei = np.load(f'output/04_mei/{experiment}_mei_n.npy')
     mei_act = np.load(f'output/04_mei/{experiment}_mei_activations_n.npy')
+    size_x, size_y = net.input_sizes[0][1:]
     titles = []
     all_images = []
 
@@ -326,7 +330,7 @@ def plot_invariance_summary(net, chosen_neurons, perc, experiment='000', mask=Fa
         all_images.append(images)
         activations[0] = mei_act[neuron]
         titles += [f'{act/activations[0]:.2f}' for act in activations]
-    all_images = np.reshape(np.vstack(all_images), (-1, 31, 31))
+    all_images = np.reshape(np.vstack(all_images), (-1, size_x, size_y))
     plot_grid(all_images, titles, num_cols=num_samples,
               save_path=f'output/08_generators/{experiment}_invariance_overview.png', show=False, row_names=row_names,scale_first_separately=scale_first_separately,ignore_assertion=True)
 
@@ -353,6 +357,7 @@ def compare_generators(neuron, net, experiment='000', generator_experiment=[], g
         f'output/04_mei/{base_exp}_mei_activations_n.npy')[neuron]
     noise_input = np.random.uniform(-2, 2, size=(10000, 128))
     mei = np.load(f'output/04_mei/{base_exp}_mei_n.npy')[neuron]
+    size_x, size_y = net.input_sizes[0][1:]
 
     for generator_exp, generator_name, perc in zip(generator_experiment, generator_names, percentage):
         generator = NDN.load_model(
@@ -372,7 +377,7 @@ def compare_generators(neuron, net, experiment='000', generator_experiment=[], g
     titles.append(mei_act)
     titles = [f'{tit/mei_act:.2f}' for tit in titles]
 
-    images = np.reshape(images, (-1, 31, 31))
+    images = np.reshape(images, (-1, size_x, size_y))
     if mask:
         images = mask_stimuli(images, base_exp, neuron)
 

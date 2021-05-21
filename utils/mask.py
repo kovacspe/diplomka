@@ -24,6 +24,7 @@ def compute_mask(net: NDN, images: np.array, try_pixels=range(0, 2, 1)):
     mask = np.zeros(num_pixels)
     net.batch_size = 512
     size_x, size_y = net.input_sizes[0][1:]
+    size_out = net.output_sizes[0]
 
     # Generate images by changing single pixel value
     inputs = []
@@ -42,7 +43,7 @@ def compute_mask(net: NDN, images: np.array, try_pixels=range(0, 2, 1)):
         np.tile(activations, (len(try_pixels)*num_pixels, 1))
 
     # Compute std of each pixel and arrange result into grid shaped like stimuli
-    differences = np.reshape(differences, (size_x, size_y, -1, 103))
+    differences = np.reshape(differences, (size_x, size_y, -1, size_out))
     mask = np.std(differences, axis=2).transpose((2, 0, 1))
     return mask
 
